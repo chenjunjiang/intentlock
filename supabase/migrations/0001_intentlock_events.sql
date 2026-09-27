@@ -10,3 +10,23 @@ create index if not exists idx_intentlock_events_name_created
   on public.intentlock_events (event_name, created_at desc);
 
 alter table public.intentlock_events enable row level security;
+
+revoke all on table public.intentlock_events from anon, authenticated;
+grant insert on table public.intentlock_events to service_role;
+grant usage, select on sequence public.intentlock_events_id_seq to service_role;
+
+create or replace function public.purge_old_intentlock_events()
+returns integer
+language plpgsql
+as $$
+declare
+  deleted_rows integer;
+begin
+  delete from public.intentlock_events
+  where created_at < now() - interval '90 days';
+  get diagnostics deleted_rows = row_count;
+  return deleted_rows;
+end;
+$$;
+
+revoke all on function public.purge_old_intentlock_events() from public;

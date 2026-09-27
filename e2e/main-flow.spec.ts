@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('intentlock_session', 'intentlock-e2e-session')
+  })
+})
+
 test('checks an unsafe AI rewrite from the real UI', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Did AI improve your writing')
