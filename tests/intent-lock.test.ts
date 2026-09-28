@@ -30,14 +30,63 @@ describe('semantic safety rules', () => {
     expect(result.risks.some((risk) => risk.category === 'Permission reversal')).toBe(true)
   })
 
+  it.each([
+    ['The system was partially effective.', 'The system was somewhat efficient.'],
+    ['It should be clear.', 'It should be understood.'],
+    ['I am often a little bit unsure about this plan.', 'I frequently feel uncertain about this plan.'],
+  ])('sends unexplained wording changes to human review', (source, output) => {
+    const result = compareLocks(source, output)
+
+    expect(result.risks).toHaveLength(0)
+    expect(result.reviews).toHaveLength(1)
+    expect(result.reviews[0].removed.length).toBeGreaterThan(0)
+    expect(result.reviews[0].added.length).toBeGreaterThan(0)
+  })
+
+  it('treats may and might as equivalent cautious wording', () => {
+    const result = compareLocks('The update may help.', 'The update might help.')
+
+    expect(result.risks).toHaveLength(0)
+    expect(result.reviews).toHaveLength(0)
+  })
+
+  it('reviews an important word deletion without inventing an added word', () => {
+    const result = compareLocks('The update may significantly help.', 'The update might help.')
+
+    expect(result.risks).toHaveLength(0)
+    expect(result.reviews[0]).toMatchObject({ removed: ['significantly'], added: [] })
+  })
+
+  it('reviews a number that only appears in the rewrite', () => {
+    const result = compareLocks('I have apples.', 'I have 10 apples.')
+
+    expect(result.risks).toHaveLength(0)
+    expect(result.reviews[0]).toMatchObject({ removed: [], added: ['10'] })
+  })
+
   it('keeps protected terms during a minimal fix', () => {
-    expect(conservativeRewrite('Priya may approves up to $5,000 after Monday.'))
-      .toBe('Priya may approve up to $5,000 after Monday.')
+    const source = 'Priya may approves up to $5,000 after Monday.'
+    const output = conservativeRewrite(source)
+
+    expect(output).toBe('Priya may approve up to $5,000 after Monday.')
+    expect(compareLocks(source, output).reviews).toHaveLength(0)
   })
 
   it('returns word-level additions and removals', () => {
     const diff = wordDiff('may approve', 'will approve')
     expect(diff).toContainEqual({ type: 'remove', text: 'may' })
     expect(diff).toContainEqual({ type: 'add', text: 'will' })
+  })
+
+  it('orders a replacement as removed wording followed by added wording', () => {
+    const changed = wordDiff('partially effective', 'somewhat efficient')
+      .filter((part) => part.type !== 'same')
+
+    expect(changed).toEqual([
+      { type: 'remove', text: 'partially' },
+      { type: 'add', text: 'somewhat' },
+      { type: 'remove', text: 'effective' },
+      { type: 'add', text: 'efficient' },
+    ])
   })
 })

@@ -50,6 +50,19 @@ describe('event API guardrails', () => {
     expect(response.headers.get('x-intentlock-storage')).toBe('degraded')
   })
 
+  it('accepts aggregate review counts without receiving writing text', async () => {
+    const response = await handler(new Request('https://intentlock.example/api/e', {
+      method: 'POST',
+      body: JSON.stringify({
+        eventName: 'analysis_completed',
+        sessionId: 'session-123',
+        metadata: { mode: 'compare', riskCount: 0, reviewCount: 1, lockCount: 0, lengthBucket: 'short' },
+      }),
+    }))
+
+    expect(response.status).toBe(204)
+  })
+
   it('sends new Supabase secret keys only through the apikey header', async () => {
     vi.stubEnv('INTENTLOCK_SUPABASE_URL', 'https://project.supabase.co/rest/v1')
     vi.stubEnv('INTENTLOCK_SUPABASE_SECRET_KEY', 'sb_secret_test-value')

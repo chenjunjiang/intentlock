@@ -18,6 +18,22 @@ describe('IntentLock main flow', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Minimal grammar fix' }))
     fireEvent.click(screen.getByRole('button', { name: 'Fix without meaning drift' }))
-    expect(screen.getByRole('heading', { name: 'No protected meaning changes found' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'No unexplained meaning changes found' })).toBeInTheDocument()
+  })
+
+  it('shows an honest review state for unexplained wording changes', () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('Original English text'), {
+      target: { value: 'The system was partially effective.' },
+    })
+    fireEvent.change(screen.getByLabelText('AI rewritten English text'), {
+      target: { value: 'The system was somewhat efficient.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Check meaning' }))
+
+    expect(screen.getByRole('heading', { name: 'Wording changes need review' })).toBeInTheDocument()
+    expect(screen.getByText('Check the wording')).toBeInTheDocument()
+    expect(screen.getByText('Important wording changed')).toBeInTheDocument()
+    expect(screen.getByText('No protected-term risk')).toBeInTheDocument()
   })
 })

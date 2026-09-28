@@ -3,13 +3,14 @@ import { compareLocks, conservativeRewrite, wordDiff, type Risk } from './lib/in
 import './App.css'
 
 type Mode = 'compare' | 'fix'
-type IconName = 'arrow' | 'check' | 'copy' | 'lock' | 'reset' | 'shield' | 'sparkles'
+type IconName = 'alert' | 'arrow' | 'check' | 'copy' | 'lock' | 'reset' | 'shield' | 'sparkles'
 
 const SAMPLE_SOURCE = 'Priya may approves up to $5,000 after Monday, but Sam must not promises it.'
 const SAMPLE_REWRITE = 'Priya will approve $5,000 on Monday, and Sam can promise it.'
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
+    alert: <><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></>,
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
     check: <path d="m5 12 4 4L19 6" />,
     copy: <><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>,
@@ -93,6 +94,7 @@ export default function App() {
     void postEvent('analysis_completed', {
       mode,
       riskCount: result.risks.length,
+      reviewCount: result.reviews.length,
       lockCount: result.locks.length,
       lengthBucket: getLengthBucket(source.length),
     })
@@ -119,6 +121,7 @@ export default function App() {
   }
 
   const diff = useMemo(() => analysis ? wordDiff(source, checkedOutput) : [], [analysis, source, checkedOutput])
+  const resultState = analysis?.risks.length ? 'danger' : analysis?.reviews.length ? 'review' : 'safe'
 
   return (
     <main>
@@ -182,11 +185,15 @@ export default function App() {
           <div className="result-heading">
             <div>
               <p className="eyebrow">RESULT</p>
-              <h2>{analysis.risks.length ? `${analysis.risks.length} possible meaning changes` : 'No protected meaning changes found'}</h2>
+              <h2>{resultState === 'danger'
+                ? `${analysis.risks.length} possible meaning changes`
+                : resultState === 'review'
+                  ? 'Wording changes need review'
+                  : 'No unexplained meaning changes found'}</h2>
             </div>
-            <span className={analysis.risks.length ? 'result-status danger' : 'result-status safe'}>
-              <Icon name={analysis.risks.length ? 'shield' : 'check'} size={17} />
-              {analysis.risks.length ? 'Review before sending' : 'Protected terms match'}
+            <span className={`result-status ${resultState}`}>
+              <Icon name={resultState === 'danger' ? 'shield' : resultState === 'review' ? 'alert' : 'check'} size={17} />
+              {resultState === 'danger' ? 'Review before sending' : resultState === 'review' ? 'Check the wording' : 'No unexplained changes'}
             </span>
           </div>
 
@@ -202,11 +209,11 @@ export default function App() {
             <article className="result-card">
               <div className="card-title"><Icon name="lock" /><h3>Protected meaning</h3><span>{analysis.locks.length}</span></div>
               <div className="lock-list">
-                {analysis.locks.map((lock) => (
+                {analysis.locks.length ? analysis.locks.map((lock) => (
                   <div className="lock-chip" key={`${lock.type}-${lock.value}`}>
                     <span>{lock.icon}</span><div><small>{lock.type}</small><strong>{lock.value}</strong></div>
                   </div>
-                ))}
+                )) : <span className="empty-lock">No protected-term risk</span>}
               </div>
             </article>
           </div>
@@ -218,8 +225,21 @@ export default function App() {
                 <h3>Original: “{risk.original}”</h3>
                 <p>{risk.explanation}</p>
               </article>
+            )) : analysis.reviews.length ? analysis.reviews.map((review, index) => (
+              <article className="review-card" key={`${review.category}-${index}`}>
+                <Icon name="alert" size={22} />
+                <div>
+                  <strong>Important wording changed</strong>
+                  <p>{review.explanation} Review the highlighted wording before sending.</p>
+                  <small>
+                    {review.removed.length > 0 && <>Removed: “{review.removed.join(', ')}”</>}
+                    {review.removed.length > 0 && review.added.length > 0 && ' · '}
+                    {review.added.length > 0 && <>Added: “{review.added.join(', ')}”</>}
+                  </small>
+                </div>
+              </article>
             )) : (
-              <article className="clear-card"><Icon name="check" size={22} /><div><strong>All extracted terms are preserved.</strong><p>This is a focused safety check, not a guarantee that every nuance is unchanged.</p></div></article>
+              <article className="clear-card"><Icon name="check" size={22} /><div><strong>No unexplained material changes found.</strong><p>Protected terms match and remaining edits are recognized. This focused check is not a guarantee that every nuance is unchanged.</p></div></article>
             )}
           </div>
         </section>

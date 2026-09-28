@@ -12,6 +12,13 @@ export type Risk = {
   explanation: string
 }
 
+export type Review = {
+  category: 'Wording change'
+  removed: string[]
+  added: string[]
+  explanation: string
+}
+
 export type DiffPart = {
   type: 'same' | 'add' | 'remove'
   text: string
@@ -45,6 +52,18 @@ const NAME_EXCLUSIONS = new Set([
   'Because', 'Unless', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
   'Sunday', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
   'September', 'October', 'November', 'December',
+])
+
+const CAUTIOUS_MODALS = new Set(['may', 'might', 'could'])
+
+const FUNCTION_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'being', 'but', 'by',
+  'do', 'does', 'did', 'for', 'from', 'had', 'has', 'have', 'he', 'her', 'hers', 'him',
+  'his', 'how', 'i', 'if', 'in', 'is', 'it', 'its', 'me', 'my', 'mine', 'of', 'on',
+  'or', 'our', 'ours', 'she', 'so', 'than', 'that', 'the', 'their', 'theirs', 'them',
+  'then', 'there', 'these', 'they', 'this', 'those', 'to', 'us', 'was', 'we', 'were',
+  'what', 'when', 'where', 'which', 'while', 'who', 'whom', 'whose', 'why', 'with',
+  'you', 'your', 'yours',
 ])
 
 function collect(regex: RegExp, text: string, type: string, icon: string): Lock[] {
@@ -93,10 +112,44 @@ function includesNormalized(haystack: string, needle: string): boolean {
   return haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase())
 }
 
-export function compareLocks(source: string, output: string): { locks: Lock[]; risks: Risk[] } {
+function preservesLock(lock: Lock, output: string): boolean {
+  const value = lock.value.toLocaleLowerCase()
+  if (lock.type === 'Commitment strength' && CAUTIOUS_MODALS.has(value)) {
+    return /\b(?:may|might|could)\b/i.test(output)
+  }
+  return includesNormalized(output, lock.value)
+}
+
+function meaningfulWords(text: string): string[] {
+  const normalized = conservativeRewrite(text)
+    .toLocaleLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/\b(?:may|might|could)\b/g, 'may')
+
+  return (normalized.match(/(?:[$€£¥]\s*)?\d+(?:[.,]\d+)*%?|[a-z]+(?:'[a-z]+)?/g) ?? [])
+    .filter((word) => !FUNCTION_WORDS.has(word))
+}
+
+function unmatchedWords(source: string[], output: string[]): { removed: string[]; added: string[] } {
+  const remainingOutput = [...output]
+  const removed: string[] = []
+
+  for (const word of source) {
+    const index = remainingOutput.indexOf(word)
+    if (index >= 0) remainingOutput.splice(index, 1)
+    else removed.push(word)
+  }
+
+  return {
+    removed: [...new Set(removed)],
+    added: [...new Set(remainingOutput)],
+  }
+}
+
+export function compareLocks(source: string, output: string): { locks: Lock[]; risks: Risk[]; reviews: Review[] } {
   const locks = extractLocks(source)
   let risks: Risk[] = locks
-    .filter((lock) => !includesNormalized(output, lock.value))
+    .filter((lock) => !preservesLock(lock, output))
     .map((lock) => ({
       category: lock.type,
       severity: ['Negation', 'Numbers', 'Dates & conditions'].includes(lock.type) ? 'High' : 'Medium',
@@ -125,7 +178,17 @@ export function compareLocks(source: string, output: string): { locks: Lock[]; r
     })
   }
 
-  return { locks, risks }
+  const wording = unmatchedWords(meaningfulWords(source), meaningfulWords(output))
+  const reviews: Review[] = risks.length === 0 && (wording.removed.length > 0 || wording.added.length > 0)
+    ? [{
+        category: 'Wording change',
+        removed: wording.removed,
+        added: wording.added,
+        explanation: 'IntentLock cannot verify that the removed and added wording mean the same thing.',
+      }]
+    : []
+
+  return { locks, risks, reviews }
 }
 
 export function wordDiff(source: string, output: string): DiffPart[] {
@@ -147,7 +210,7 @@ export function wordDiff(source: string, output: string): DiffPart[] {
       result.push({ type: 'same', text: a[i] })
       i += 1
       j += 1
-    } else if (j < b.length && (i === a.length || rows[i][j + 1] >= rows[i + 1][j])) {
+    } else if (j < b.length && (i === a.length || rows[i][j + 1] > rows[i + 1][j])) {
       result.push({ type: 'add', text: b[j] })
       j += 1
     } else {

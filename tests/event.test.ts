@@ -3,8 +3,13 @@ import { parseProductEvent } from '../src/lib/event'
 
 describe('anonymous event protocol', () => {
   it('accepts an allowlisted aggregate event', () => {
-    expect(parseProductEvent({ eventName: 'analysis_completed', sessionId: 'session-123', metadata: { riskCount: 2 } }))
-      .toEqual({ eventName: 'analysis_completed', sessionId: 'session-123', metadata: { riskCount: 2 } })
+    const event = {
+      eventName: 'analysis_completed',
+      sessionId: 'session-123',
+      metadata: { mode: 'compare', riskCount: 2, reviewCount: 1, lockCount: 3, lengthBucket: 'short' },
+    }
+
+    expect(parseProductEvent(event)).toEqual(event)
   })
 
   it('rejects unknown events, unknown fields and nested metadata', () => {

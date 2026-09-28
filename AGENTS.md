@@ -53,4 +53,4 @@ IntentLock 是面向普通 AI 写作用户的语义安全检查器。当前阶�
 - `README.md`：使用、部署和数据边界。
 - `docs/qa-report.md`：当前验证证据。
 - `supabase/migrations/`：事件数据结构。
-- 设计真源：本项目 `src/App.tsx` + `src/App.css`，目标视口桌面 1280×900、移动 Pixel 7；最后生产核验日期 2026-09-27，读取方式为浏览器预览与 Playwright E2E。
+- 设计真源：本项目 `src/App.tsx` + `src/App.css`，目标视口桌面 1280×900、移动 Pixel 7；最后生产核验日期 2026-09-28，读取方式为浏览器预览与 Playwright E2E。

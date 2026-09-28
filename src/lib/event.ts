@@ -10,7 +10,7 @@ const ALLOWED_EVENT_KEYS = new Set(['eventName', 'sessionId', 'metadata'])
 
 const ALLOWED_METADATA_KEYS: Record<string, Set<string>> = {
   visit: new Set(),
-  analysis_completed: new Set(['mode', 'riskCount', 'lockCount', 'lengthBucket']),
+  analysis_completed: new Set(['mode', 'riskCount', 'reviewCount', 'lockCount', 'lengthBucket']),
   repeat_use: new Set(['checks']),
   result_copied: new Set(['mode']),
   pricing_interest: new Set(['answer', 'proposedMonthlyPriceUsd']),
