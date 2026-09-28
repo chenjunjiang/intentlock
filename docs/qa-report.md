@@ -87,7 +87,8 @@
 - `0001`、`0002`、`0003` 三条 migration 的本地与远端版本一致。
 - 生产 E2E 固定使用 `intentlock-e2e-session`，便于精确识别和清理测试事件。
 - 2026-09-27 验收确认的 19 条旧测试事件及当时固定 session E2E 事件已删除，清理后事件表为 0 行。
-- 2026-09-28 生产 E2E 再次使用固定测试会话写入匿名测试事件；本轮未获生产数据删除授权，因此没有执行清理。测试事件不含原文或改写正文，可按固定 session 精确识别。
+- 2026-09-28 生产 E2E 再次使用固定测试会话写入匿名测试事件；获授权后按 `session_id = 'intentlock-e2e-session'` 精确删除 55 条，复查该 session 剩余 0 条，其他 session 仍保留 1 条。
+- 清理后生产 `/api/e?health=1` 返回 HTTP 200 和 `{"degraded":false,"storage":"supabase","ingestFailures":0}`；没有重新运行生产 E2E，避免再次生成测试事件。
 
 ## 独立评审结论
 
