@@ -41,6 +41,15 @@
 
 随后 `main@7277b33` 已推送至 GitHub，Vercel Git 设置页显示连接到 `chenjunjiang/intentlock`。连接前的推送没有触发自动部署；后续需用连接后的新提交验证 Git webhook、生产分支、部署提交哈希、稳定域名和真实入口。上述历史截图仍对应同一源码哈希，但不能证明 Git 自动部署已经生效。
 
+### Git 来源生产部署验收
+
+- 连接后的 `main@1149b2f204268cc3c0ebf3ae1b2b8c49f7866b6c` 推送自动创建部署 `dpl_Cv7rvgxfvje7gdR4zUMEwzo48i1F`。Vercel CLI 的 `githubCommitSha` 过滤返回该生产部署；项目概览显示 Source 为 GitHub `main` 的同一提交、状态 `Ready`，稳定域名 `https://intentlock-nine.vercel.app` 指向该部署。未运行 `vercel --prod`。
+- 固定测试 session 发布前为 0 条。`E2E_BASE_URL=https://intentlock-nine.vercel.app PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e` 在桌面与 Pixel 7 共 14/14 项通过，0 skip、0 xfail，事件请求与真实存储响应断言通过。测试后只读预检为 40 条，`bun run test:e2e:cleanup --execute` 精确删除 40 条，复查为 0 条；其他会话未删除。
+- 系统 Chrome 禁用 JavaScript 后真实导航首页和 `/api/e?health=1`，均返回 HTTP 200；健康响应为 `degraded:false`、`storage:supabase`、`ingestFailures:0`。首页和健康接口均返回 CSP（含 `frame-ancestors 'none'`）、HSTS、`x-content-type-options:nosniff`、Referrer-Policy 与 Permissions-Policy。终端 `curl` 两次连接超时，只表明该终端网络路径不可用，未计为服务失败或验证通过。
+- 新一轮 E2E 的 16 张截图与同源码哈希的已入库生产截图对照：13 张逐字节一致；3 张移动截图逐对实际查看，文案、结果、卡片和布局一致，无可见截断、遮挡、溢出或重叠。逐 Scenario 的步骤、DOM 结果和存档截图链接仍见上表；前端/API/E2E 源码哈希未变。
+
+需求完整性 verify：AC-1 至 AC-6、Git-first 发布目标、真实生产入口、测试数据清理均有对应证据；未发现缺项。独立 code/release review：本轮 Git 设置只连接目标仓库，部署来源与远端提交一致；文档状态提交未改业务源码，安全头和存储健康未回退。未发现 P0/P1。剩余风险：Vercel GitHub App 对新增指定仓库拥有代码、工作流等较宽的读写权限，需定期复核授权；本次验证证明 GitHub `main` 推送自动生产部署，但真实用户需求是否成立仍须用非测试行为数据判断。
+
 ## 2026-09-29 部署前候选版本：价格反馈与证据链修复
 
 本节是部署前的本地验收快照，对应工作树 `codex/feedback-qa-fix`、基线提交 `39c0ef7`；当时尚未部署或运行新版生产 E2E。生产结果见上节。历史 2026-09-28 章节的 `test-results/` 截图是被后续运行覆盖的临时路径，现已无法按原路径复核；本次本地证据保存在 `docs/evidence/feedback-qa-fix/`。

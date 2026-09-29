@@ -2,9 +2,9 @@
 
 适用项目：GitHub `chenjunjiang/intentlock` → Vercel `gumu1/intentlock`，生产分支 `main`，稳定域名 `https://intentlock-nine.vercel.app`。
 
-## 当前过渡状态
+## 当前状态与历史对账
 
-2026-09-29 有一次生产部署来自未提交工作树；这是历史流程缺陷，不能把该 CLI 部署记作 Git 自动部署。目前已将同一已验收源码推送至 GitHub `main@7277b33`，并将 Vercel 项目连接到 `chenjunjiang/intentlock`。连接后的首次 Git 推送、Git 来源生产部署及稳定域名复验仍待完成。
+2026-09-29 曾有一次生产部署来自未提交工作树；这是历史流程缺陷，不能把该 CLI 部署记作 Git 自动部署。已将已验收源码推送到 GitHub `main`，并连接 Vercel 项目与 `chenjunjiang/intentlock`。连接后的 `main@1149b2f` 推送自动创建生产部署 `dpl_Cv7rvgxfvje7gdR4zUMEwzo48i1F`；Vercel 显示来源为 GitHub `main`、状态 `Ready`，稳定域名指向该部署。生产 14/14 E2E、健康、安全头与固定测试会话清理均通过，详见 `docs/qa-report.md`。
 
 ## 首次对账
 

@@ -69,3 +69,9 @@
 ## 2026-09-29 发布流程纠偏
 
 本次生产部署使用了未提交工作树，是流程缺陷；生产 E2E 通过不等于仓库与生产一致。后续以 GitHub `main` 为发布真源，使用 Vercel Git 集成自动部署，不再将本地 `vercel --prod` 作为常规发布命令。首次对账必须先把已验收代码提交并安全合并/推送至远端 `main`，再连接生产项目的 Git 集成并核对部署来源、提交哈希和稳定域名。合并与推送分别遵守授权门控。详细步骤见 `docs/deployment-workflow.md`。
+
+## 2026-09-29 Git 自动发布验收
+
+已将修复以 `02ac4bb` 提交到功能分支，在主 checkout 快进合并，并将主分支验证记录提交为 `7277b33`。主分支 lint、30/30 单元/组件测试、build、桌面/移动 14/14 本地 E2E 全部通过，固定生产测试 session 在发布前为 0 条。远端 `main` 更新后，用户在 GitHub 将 Vercel App 的仓库范围仅增加 `chenjunjiang/intentlock`，Vercel 项目随后连接该仓库。
+
+连接后的文档状态提交 `1149b2f` 推送到 `main`，自动触发 Vercel 生产部署 `dpl_Cv7rvgxfvje7gdR4zUMEwzo48i1F`，未使用 CLI 直接发布。部署来源、分支、完整提交哈希、`Ready` 状态和稳定域名均已核对；生产真实 UI E2E 14/14 通过。首页和健康接口经系统 Chrome 返回 200，健康为 `degraded:false`、`ingestFailures:0`，关键安全头存在；固定测试 session 40 条已精确清理至 0 条。具体证据与终端 `curl` 网络限制见 `docs/qa-report.md`。
