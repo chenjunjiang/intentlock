@@ -46,7 +46,7 @@ bun run test:e2e
 
 目标发布链路是 GitHub 仓库 `chenjunjiang/intentlock` 的 `main` 分支连接 Vercel 项目 `gumu1/intentlock`：代码先提交、通过验证并推送到 `main`，再由 Vercel Git 集成自动构建和部署生产。其他分支仅用于预览。不要把本地 Git hook 或 `vercel --prod` 当作日常发布入口；本地 hook 不能保证远端部署，也无法作为团队共享的发布门控。生产推送必须单独获得授权。
 
-**当前过渡状态：**2026-09-29 的修复曾从未提交工作树通过 Vercel CLI 直接部署，线上因此领先于 GitHub `main`。Git 集成尚待确认/连接；在仓库 `main` 更新到已验收版本前，不连接生产项目，以免旧代码被重新部署。首次对账与后续自动发布步骤见 [部署工作流](docs/deployment-workflow.md)。CLI 直接部署仅用于明确授权的应急恢复，并须补齐对应提交及事后对账。
+**当前过渡状态：**2026-09-29 的修复曾从未提交工作树通过 Vercel CLI 直接部署。现已将同一已验收源码同步到 GitHub `main@7277b33`，并连接 Vercel Git 集成；连接后的首次自动生产部署仍待实测。首次对账与后续自动发布步骤见 [部署工作流](docs/deployment-workflow.md)。CLI 直接部署仅用于明确授权的应急恢复，并须补齐对应提交及事后对账。
 
 部署后执行：
 

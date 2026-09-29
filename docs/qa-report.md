@@ -39,6 +39,8 @@
 
 主 checkout 快进合并至 `main@02ac4bb` 后再次执行 `bun run lint`、`bun run test`（30/30）、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`（14/14），全部通过，0 skip、0 xfail。主分支前端/API/E2E 文件与上方截图哈希一致；桌面与移动 E2E 仍从真实 UI 操作，逐场景截图与视觉判定见上表。`bun run test:e2e:cleanup` 对固定生产项目和测试 session 只读预检为 0 条，本轮本地 E2E 不写生产。此时远端 `main` 尚未推送，Git 来源生产部署尚未验证。
 
+随后 `main@7277b33` 已推送至 GitHub，Vercel Git 设置页显示连接到 `chenjunjiang/intentlock`。连接前的推送没有触发自动部署；后续需用连接后的新提交验证 Git webhook、生产分支、部署提交哈希、稳定域名和真实入口。上述历史截图仍对应同一源码哈希，但不能证明 Git 自动部署已经生效。
+
 ## 2026-09-29 部署前候选版本：价格反馈与证据链修复
 
 本节是部署前的本地验收快照，对应工作树 `codex/feedback-qa-fix`、基线提交 `39c0ef7`；当时尚未部署或运行新版生产 E2E。生产结果见上节。历史 2026-09-28 章节的 `test-results/` 截图是被后续运行覆盖的临时路径，现已无法按原路径复核；本次本地证据保存在 `docs/evidence/feedback-qa-fix/`。

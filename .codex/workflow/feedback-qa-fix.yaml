@@ -14,9 +14,9 @@ gate_results:
   verify: passed_local_ac1_to_ac6_with_production_gate_noted
   review: passed_no_p0_p1
   production: deployed_14_e2e_passed_health_ok_test_rows_cleaned
-  git_release: correction_in_progress_uncommitted_production_deploy
+  git_release: remote_main_synced_vercel_git_connected_auto_deploy_pending
   local_recheck: passed_lint_30_unit_build_14_e2e_hashes_match
   main_recheck: passed_lint_30_unit_build_14_e2e_test_session_zero
-last_verified_at: 2026-09-29T11:27:52Z
-next_action: Push the verified main branch with user authorization, connect Vercel Git if needed, and verify a Git-sourced production deployment.
+last_verified_at: 2026-09-29T11:40:03Z
+next_action: Push the documentation status commit through connected Git, then verify a Git-sourced production deployment and clean its fixed test session.
 blockers: []
