@@ -80,8 +80,42 @@ describe('event API guardrails', () => {
 
     expect(response.status).toBe(204)
     expect(fetchMock).toHaveBeenCalledOnce()
+    expect(response.headers.get('x-intentlock-storage')).toBe('stored')
     const requestOptions = fetchMock.mock.calls[0][1] as RequestInit
     expect(requestOptions.headers).toMatchObject({ apikey: 'sb_secret_test-value' })
     expect(requestOptions.headers).not.toHaveProperty('authorization')
+  })
+
+  it('marks rate-limited events as not stored', async () => {
+    vi.stubEnv('INTENTLOCK_SUPABASE_URL', 'https://project.supabase.co/rest/v1')
+    vi.stubEnv('INTENTLOCK_SUPABASE_SECRET_KEY', 'sb_secret_test-value')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+    let lastResponse: Response | undefined
+    for (let index = 0; index < 61; index += 1) {
+      lastResponse = await handler(new Request('https://intentlock.example/api/e', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '198.51.100.77' },
+        body: JSON.stringify({ eventName: 'pricing_interest', sessionId: 'rate-test-session', metadata: { answer: 'yes', proposedMonthlyPriceUsd: 4 } }),
+      }))
+    }
+
+    expect(lastResponse?.status).toBe(204)
+    expect(lastResponse?.headers.get('x-intentlock-storage')).toBe('rate-limited')
+    expect(fetchMock).toHaveBeenCalledTimes(60)
+  })
+
+  it('marks Supabase write failures as degraded', async () => {
+    vi.stubEnv('INTENTLOCK_SUPABASE_URL', 'https://project.supabase.co/rest/v1')
+    vi.stubEnv('INTENTLOCK_SUPABASE_SECRET_KEY', 'sb_secret_test-value')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })))
+
+    const response = await handler(new Request('https://intentlock.example/api/e', {
+      method: 'POST',
+      body: JSON.stringify({ eventName: 'pricing_interest', sessionId: 'failed-store-session', metadata: { answer: 'yes', proposedMonthlyPriceUsd: 4 } }),
+    }))
+
+    expect(response.status).toBe(204)
+    expect(response.headers.get('x-intentlock-storage')).toBe('degraded')
   })
 })

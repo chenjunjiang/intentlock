@@ -12,6 +12,7 @@ IntentLock 是面向普通 AI 写作用户的语义安全检查器。当前阶�
 - `bun run test`：Vitest 单元和组件测试。
 - `bun run build`：TypeScript + Vite 生产构建。
 - `bun run test:e2e`：Playwright 桌面与移动 E2E。
+- `bun run test:e2e:cleanup`：只读预检固定测试会话；显式加 `--execute` 才删除并复查。
 
 # 后端
 
@@ -19,6 +20,7 @@ IntentLock 是面向普通 AI 写作用户的语义安全检查器。当前阶�
 - 事件解析真源在 `src/lib/event.ts`。
 - Supabase schema 在 `supabase/migrations/`。
 - 未配置数据库时允许匿名统计降级，但健康检查必须如实返回 `degraded: true`。
+- `POST /api/e` 以 `x-intentlock-storage: stored|degraded|rate-limited` 区分写入结果；价格反馈仅在 `stored` 后致谢。
 
 # 前端
 
@@ -32,6 +34,7 @@ IntentLock 是面向普通 AI 写作用户的语义安全检查器。当前阶�
 - 不声称使用了大模型；接入模型后才可更新文案。
 - 免费 beta 不接支付、不限制次数。
 - 价格问题只做非阻断调查，不代表收费承诺。
+- 发布以 GitHub `main` → Vercel Git 集成自动部署为准；先提交并验证，再经单独授权推送。禁止把未提交工作树通过 CLI 直接部署作为常规流程。
 - 代码注释、docstring 和 TODO 使用中文。
 
 # 本地验证
@@ -52,5 +55,7 @@ IntentLock 是面向普通 AI 写作用户的语义安全检查器。当前阶�
 
 - `README.md`：使用、部署和数据边界。
 - `docs/qa-report.md`：当前验证证据。
+- `docs/deployment-workflow.md`：Git-first 发布、首次对账与生产复验。
+- `docs/evidence/feedback-qa-fix/`：2026-09-29 本地截图；`production/` 为同版本生产桌面/移动截图。
 - `supabase/migrations/`：事件数据结构。
-- 设计真源：本项目 `src/App.tsx` + `src/App.css`，目标视口桌面 1280×900、移动 Pixel 7；最后生产核验日期 2026-09-28，读取方式为浏览器预览与 Playwright E2E。
+- 设计真源：本项目 `src/App.tsx` + `src/App.css`，目标视口桌面 1280×900、移动 Pixel 7；最后本地与生产核验日期均为 2026-09-29，读取方式为浏览器预览与 Playwright E2E。

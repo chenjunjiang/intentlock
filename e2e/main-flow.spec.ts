@@ -3,18 +3,25 @@ import { parseProductEvent } from '../src/lib/event'
 
 const browserErrors = new WeakMap<Page, string[]>()
 const telemetryCounts = new WeakMap<Page, number>()
+const telemetryResponses = new WeakMap<Page, number>()
+const allowsDegradedPricing = new WeakSet<Page>()
 
 test.beforeEach(async ({ page }) => {
   const errors: string[] = []
   browserErrors.set(page, errors)
   telemetryCounts.set(page, 0)
+  telemetryResponses.set(page, 0)
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`)
   })
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
   page.on('request', (request) => {
-    if (!new URL(request.url()).pathname.endsWith('/api/e')) return
+    const url = new URL(request.url())
+    if (!url.pathname.endsWith('/api/e')) return
     telemetryCounts.set(page, (telemetryCounts.get(page) ?? 0) + 1)
+    if (url.pathname !== '/api/e') errors.push(`telemetry: unexpected path ${url.pathname}`)
+    if (url.origin !== new URL(page.url()).origin) errors.push('telemetry: unexpected origin')
+    if (request.method() !== 'POST') errors.push(`telemetry: unexpected method ${request.method()}`)
     try {
       if (!parseProductEvent(request.postDataJSON())) {
         errors.push('telemetry: event failed the production parser')
@@ -23,8 +30,18 @@ test.beforeEach(async ({ page }) => {
       errors.push('telemetry: event body is not valid JSON')
     }
   })
+  page.on('response', (response) => {
+    if (new URL(response.url()).pathname !== '/api/e') return
+    telemetryResponses.set(page, (telemetryResponses.get(page) ?? 0) + 1)
+    if (response.status() !== 204) errors.push(`telemetry: unexpected response ${response.status()}`)
+    const storage = response.headers()['x-intentlock-storage']
+    const event = parseProductEvent(response.request().postDataJSON())
+    if (storage !== 'stored' && !(allowsDegradedPricing.has(page) && event?.eventName === 'pricing_interest' && storage === 'degraded')) {
+      errors.push(`telemetry: unexpected storage state ${storage ?? 'missing'}`)
+    }
+  })
   if (!process.env.E2E_BASE_URL) {
-    await page.route('**/api/e', (route) => route.fulfill({ status: 204 }))
+    await page.route('**/api/e', (route) => route.fulfill({ status: 204, headers: { 'x-intentlock-storage': 'stored' } }))
   }
   await page.addInitScript(() => {
     localStorage.setItem('intentlock_session', 'intentlock-e2e-session')
@@ -33,6 +50,7 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }) => {
   expect(telemetryCounts.get(page) ?? 0).toBeGreaterThan(0)
+  await expect.poll(() => telemetryResponses.get(page) ?? 0).toBe(telemetryCounts.get(page) ?? 0)
   expect(browserErrors.get(page) ?? []).toEqual([])
 })
 
@@ -94,5 +112,34 @@ test('asks for pricing interest without blocking free checks', async ({ page }, 
   await page.getByRole('button', { name: 'Yes, if it works' }).click()
   await expect(page.getByText('Thanks—your answer was recorded.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Check meaning' })).toBeEnabled()
+  await page.screenshot({ path: testInfo.outputPath('final.png'), fullPage: true })
+})
+
+test('keeps pricing interest retryable when storage degrades', async ({ page }, testInfo) => {
+  allowsDegradedPricing.add(page)
+  let pricingAttempts = 0
+  await page.route('**/api/e', async (route) => {
+    const event = parseProductEvent(route.request().postDataJSON())
+    if (event?.eventName === 'pricing_interest') pricingAttempts += 1
+    if (process.env.E2E_BASE_URL && !(event?.eventName === 'pricing_interest' && pricingAttempts === 1)) {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      status: 204,
+      headers: { 'x-intentlock-storage': event?.eventName === 'pricing_interest' && pricingAttempts === 1 ? 'degraded' : 'stored' },
+    })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Check meaning' }).click()
+  await page.getByRole('button', { name: 'Check meaning' }).click()
+  await page.getByRole('button', { name: 'Yes, if it works' }).click()
+  await expect(page.getByRole('alert')).toHaveText('Your answer was not saved. Please try again.')
+  await expect(page.getByText('Thanks—your answer was recorded.')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Check meaning' })).toBeEnabled()
+  await page.screenshot({ path: testInfo.outputPath('failure.png'), fullPage: true })
+  await page.getByRole('button', { name: 'Yes, if it works' }).click()
+  await expect(page.getByText('Thanks—your answer was recorded.')).toBeVisible()
+  expect(pricingAttempts).toBe(2)
   await page.screenshot({ path: testInfo.outputPath('final.png'), fullPage: true })
 })

@@ -74,7 +74,7 @@ export default async function handler(request: Request): Promise<Response> {
   }
   if (!event) return new Response(null, { status: 400 })
   if (!rateOk(`ip:${clientIp(request)}`) || !rateOk(`session:${event.sessionId}`)) {
-    return new Response(null, { status: 204 })
+    return new Response(null, { status: 204, headers: { 'x-intentlock-storage': 'rate-limited' } })
   }
 
   const { supabaseUrl, supabaseKey } = storageConfig()
@@ -104,5 +104,5 @@ export default async function handler(request: Request): Promise<Response> {
     return new Response(null, { status: 204, headers: { 'x-intentlock-storage': 'degraded' } })
   }
 
-  return new Response(null, { status: 204 })
+  return new Response(null, { status: 204, headers: { 'x-intentlock-storage': 'stored' } })
 }

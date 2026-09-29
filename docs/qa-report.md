@@ -1,6 +1,6 @@
 # IntentLock QA 报告
 
-日期：2026-09-28
+日期：2026-09-29
 
 ## 环境
 
@@ -11,9 +11,64 @@
 - Vercel CLI 60.0.1
 - 本地 macOS arm64
 
+## 2026-09-29 生产上线验收：价格反馈与证据链修复
+
+- 生产部署：`dpl_2VMywvvVAonZCMzJKdXRyrVKBmUo`，状态 `READY`；稳定地址 [intentlock-nine.vercel.app](https://intentlock-nine.vercel.app)，本次部署地址 `https://intentlock-pl8fern58-gumu1.vercel.app`。使用 `bunx vercel@60.0.1 --prod --yes`，Vercel 生产构建成功并绑定稳定域名。
+- 生产命令：`E2E_BASE_URL=https://intentlock-nine.vercel.app PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`，桌面与 Pixel 7 共 14/14 通过，0 skip、0 xfail。成功路径的事件请求实际经过生产 Edge API 与 Supabase；失败重试场景只模拟首次价格反馈降级，第二次提交仍走真实接口。所有场景均核对事件请求方法、路径、正文与 204/`stored` 响应，Console error 与未捕获异常为 0。
+- 系统 Chrome 读取生产首页 HTTP 200；`/api/e?health=1` HTTP 200，返回 `degraded:false`、`storage:supabase`、`ingestFailures:0`。首页响应包含 CSP、HSTS、`nosniff`、`strict-origin-when-cross-origin` 及禁用摄像头/麦克风/定位的 Permissions-Policy。
+- E2E 前固定测试 session 为 0 条，之后只读预检为 40 条；执行 `bun run test:e2e:cleanup --execute` 精确删除该 session 的 40 条，复查残留 0 条。没有删除其他会话。
+- 上线后只读汇总排除测试 session：2 个会话各有 1 次 `visit`，暂无 `analysis_completed`、`repeat_use` 或 `pricing_interest`。样本过少，且访问未转化为检查，不能据此声称产品需求或付费意愿已验证。
+
+### 生产逐场景视觉结论
+
+以下 16 张生产截图均已实际查看，并复制到不会被下一次 E2E 覆盖的 `docs/evidence/feedback-qa-fix/production/`。仅含合成测试文本，无凭据或真实用户内容。桌面双栏、移动单栏及失败提示均无可见截断、遮挡、横向溢出或重叠。路径相对于本文件。
+
+| 场景 | 浏览器步骤与 DOM/视觉结果 | 生产截图 |
+| --- | --- | --- |
+| 危险改写 | 检查默认危险改写 → 4 项红色风险与保护项可见 | [桌面](evidence/feedback-qa-fix/production/main-flow-checks-an-unsafe-AI-rewrite-from-the-real-UI-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-checks-an-unsafe-AI-rewrite-from-the-real-UI-mobile-chromium/final.png) |
+| 最小语法修正 | 切换修正模式并执行 → 绿色结果与保护项可见 | [桌面](evidence/feedback-qa-fix/production/main-flow-switches-to-a-safe-minimal-grammar-fix-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-switches-to-a-safe-minimal-grammar-fix-mobile-chromium/final.png) |
+| 重要措辞变化 | 输入 `partially effective → somewhat efficient` → 黄色复核与差异词可见 | [桌面](evidence/feedback-qa-fix/production/main-flow-asks-for-human-r-92f59-n-important-wording-changes-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-asks-for-human-r-92f59-n-important-wording-changes-mobile-chromium/final.png) |
+| 新增数字 | 输入 `I have apples. → I have 10 apples.` → 黄色复核与新增数字可见 | [桌面](evidence/feedback-qa-fix/production/main-flow-asks-for-human-r-4be9b-n-the-rewrite-adds-a-number-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-asks-for-human-r-4be9b-n-the-rewrite-adds-a-number-mobile-chromium/final.png) |
+| 同级谨慎措辞 | 输入 `may → might` → 绿色结果，无误报 | [桌面](evidence/feedback-qa-fix/production/main-flow-accepts-equivalent-cautious-wording-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-accepts-equivalent-cautious-wording-mobile-chromium/final.png) |
+| 价格兴趣成功 | 两次检查后提交回答 → 真实写入后致谢，检查按钮可用 | [桌面](evidence/feedback-qa-fix/production/main-flow-asks-for-pricing-56bd6-ithout-blocking-free-checks-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/production/main-flow-asks-for-pricing-56bd6-ithout-blocking-free-checks-mobile-chromium/final.png) |
+| 降级后重试 | 首次模拟降级 → 失败提示；重试真实写入 → 才显示致谢 | [桌面失败](evidence/feedback-qa-fix/production/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-desktop-chromium/failure.png) / [桌面成功](evidence/feedback-qa-fix/production/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-desktop-chromium/final.png) / [移动失败](evidence/feedback-qa-fix/production/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-mobile-chromium/failure.png) / [移动成功](evidence/feedback-qa-fix/production/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-mobile-chromium/final.png) |
+
+生产截图对应的前端/API/E2E 文件 SHA-256 与下节所列 4 个哈希一致；部署后未修改这些文件。该生产版本来自未提交工作树，并非 GitHub 自动部署；仓库与线上尚未对账。后续须先提交、合并并验证主分支，经单独授权推送，再连接 Vercel Git 集成，核对 Git 来源部署；参见 `docs/deployment-workflow.md`。
+
+2026-09-29 Git-first 流程纠偏时对当前源码复验：`git diff --check`、`bun run lint`、`bun run test`（30/30）、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`（14/14）全部通过，0 skip、0 xfail；上述四个源码哈希仍与报告一致。这只是功能分支本地复验，不等同于主分支验证或 Git 来源生产部署。
+
+## 2026-09-29 部署前候选版本：价格反馈与证据链修复
+
+本节是部署前的本地验收快照，对应工作树 `codex/feedback-qa-fix`、基线提交 `39c0ef7`；当时尚未部署或运行新版生产 E2E。生产结果见上节。历史 2026-09-28 章节的 `test-results/` 截图是被后续运行覆盖的临时路径，现已无法按原路径复核；本次本地证据保存在 `docs/evidence/feedback-qa-fix/`。
+
+### 调试与验证
+
+- 假设：价格回答的“已记录”由本地点击状态触发，与真实写入无关；204 不能区分成功、降级和限流。
+- 实验：新增组件/API 回归测试；旧实现出现 6 项失败，原有 24 项通过。修复后 `bun run test` 为 4 文件 30 项通过，0 skip、0 xfail。
+- 根因：前端未等待 `fetch` 结果，接口对成功和限流都返回无标识的 204。
+- 最小修复：增加 `x-intentlock-storage` 三态响应；价格卡片等待 `stored`，其余状态显示可重试提示；免费检查仍可用。
+- `bun run build`：通过。`bun run lint`：通过。`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`：本地桌面与 Pixel 7 共 14 项通过，0 skip、0 xfail；每个事件的请求方法、精确路径、正文解析和响应状态均经过浏览器网络断言。本地 Vite 不运行 Edge API，E2E 仅对遥测接口模拟响应；真实写入已在上节的生产 E2E 验证。
+- `bun run test:e2e:cleanup`：只读查询目标项目 `dpbicjfthmyeosjdftyn`、固定 session `intentlock-e2e-session`，当时为 0 条；本轮未执行删除。
+
+### 逐场景视觉结论
+
+下表每行桌面与移动最终截图均已实际查看；仅包含合成测试文本，没有账号或密钥。移动端均为单栏，按钮、结果和文案无可见截断、遮挡、横向溢出或重叠。以下路径相对于本文件所在目录。
+
+| 场景 | 视觉与功能判定 | 桌面 / 移动证据 |
+| --- | --- | --- |
+| 危险改写 | 4 项红色风险与保护项正确呈现 | [桌面](evidence/feedback-qa-fix/main-flow-checks-an-unsafe-AI-rewrite-from-the-real-UI-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-checks-an-unsafe-AI-rewrite-from-the-real-UI-mobile-chromium/final.png) |
+| 最小语法修正 | 绿色结果与保留保护项说明正确 | [桌面](evidence/feedback-qa-fix/main-flow-switches-to-a-safe-minimal-grammar-fix-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-switches-to-a-safe-minimal-grammar-fix-mobile-chromium/final.png) |
+| 重要措辞变化 | 黄色复核与删除/新增词可辨认 | [桌面](evidence/feedback-qa-fix/main-flow-asks-for-human-r-92f59-n-important-wording-changes-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-asks-for-human-r-92f59-n-important-wording-changes-mobile-chromium/final.png) |
+| 新增数字 | 黄色复核与“10”新增提示可见 | [桌面](evidence/feedback-qa-fix/main-flow-asks-for-human-r-4be9b-n-the-rewrite-adds-a-number-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-asks-for-human-r-4be9b-n-the-rewrite-adds-a-number-mobile-chromium/final.png) |
+| 同级谨慎措辞 | `may → might` 绿色结果，无误报 | [桌面](evidence/feedback-qa-fix/main-flow-accepts-equivalent-cautious-wording-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-accepts-equivalent-cautious-wording-mobile-chromium/final.png) |
+| 价格兴趣成功 | 显示已记录，免费检查按钮仍可用 | [桌面](evidence/feedback-qa-fix/main-flow-asks-for-pricing-56bd6-ithout-blocking-free-checks-desktop-chromium/final.png) / [移动](evidence/feedback-qa-fix/main-flow-asks-for-pricing-56bd6-ithout-blocking-free-checks-mobile-chromium/final.png) |
+| 存储降级后重试 | 失败时显示可重试提示，重试后才致谢 | [桌面失败](evidence/feedback-qa-fix/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-desktop-chromium/failure.png) / [桌面成功](evidence/feedback-qa-fix/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-desktop-chromium/final.png) / [移动失败](evidence/feedback-qa-fix/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-mobile-chromium/failure.png) / [移动成功](evidence/feedback-qa-fix/main-flow-keeps-pricing-in-8ea69-yable-when-storage-degrades-mobile-chromium/final.png) |
+
+截图对应的核心文件 SHA-256：`src/App.tsx` 为 `df46a53a74db4ed3eb5744c1be3489d3ab75e1899bdbf877a0ccd91a1e2c5d18`，`src/App.css` 为 `de74eee642562d4f71252c1141595a089e2b98e3b2804aa1a8d5820f20220fdc`，`api/e.ts` 为 `bf8217e88911b7374a8ae73a9383765c47aae18471dbf4686776be2eb4461425`，`e2e/main-flow.spec.ts` 为 `908cd51d765e49dfa63064b5851f5aba8ba92d898792d44fe9a6ea46cc3fb473`。这些哈希标识截图所对应的代码状态；相关文件后续若修改，需重跑 E2E 并更新证据。
+
 ## 2026-09-28 生产版本
 
-本节对应已部署到稳定域名的当前工作区版本。本地与生产证据分开执行，并在部署后重新完成真实入口验收。
+本节对应 2026-09-28 当时部署到稳定域名的版本，不对应上方 2026-09-29 待部署候选版本。当时本地与生产证据分开执行，并在部署后完成真实入口验收。
 
 ### 调试链
 

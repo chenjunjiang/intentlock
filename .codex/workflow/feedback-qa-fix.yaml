@@ -1,0 +1,21 @@
+change_id: feedback-qa-fix
+task_type: c-end-existing-medium
+current_phase: executing
+artifacts:
+  - docs/feedback-qa-fix.md
+  - docs/qa-report.md
+  - docs/evidence/feedback-qa-fix/
+  - docs/evidence/feedback-qa-fix/production/
+  - docs/deployment-workflow.md
+gate_results:
+  scope: confirmed_by_user_request
+  implementation: complete_local
+  qa: passed_local_30_unit_and_14_e2e
+  verify: passed_local_ac1_to_ac6_with_production_gate_noted
+  review: passed_no_p0_p1
+  production: deployed_14_e2e_passed_health_ok_test_rows_cleaned
+  git_release: correction_in_progress_uncommitted_production_deploy
+  local_recheck: passed_lint_30_unit_build_14_e2e_hashes_match
+last_verified_at: 2026-09-29T11:21:54Z
+next_action: Commit reviewed changes on the feature branch; obtain separate authorization for main merge and push, then connect Vercel Git and verify a Git-sourced production deployment.
+blockers: []

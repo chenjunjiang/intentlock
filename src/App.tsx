@@ -53,22 +53,24 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const [copied, setCopied] = useState(false)
   const [interest, setInterest] = useState<'yes' | 'not-yet' | null>(null)
+  const [interestStatus, setInterestStatus] = useState<'idle' | 'saving' | 'error'>('idle')
 
   useEffect(() => {
     void postEvent('visit', {}, sessionId)
   }, [sessionId])
 
   async function postEvent(eventName: string, metadata: Record<string, unknown> = {}, id = sessionId) {
-    if (!id) return
+    if (!id) return false
     try {
-      await fetch('/api/e', {
+      const response = await fetch('/api/e', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ eventName, sessionId: id, metadata }),
         keepalive: true,
       })
+      return response.status === 204 && response.headers.get('x-intentlock-storage') === 'stored'
     } catch {
-      // 记录失败不能阻断浏览器内的核心检查。
+      return false
     }
   }
 
@@ -115,9 +117,16 @@ export default function App() {
     void postEvent('result_copied', { mode })
   }
 
-  function recordInterest(answer: 'yes' | 'not-yet') {
-    setInterest(answer)
-    void postEvent('pricing_interest', { answer, proposedMonthlyPriceUsd: 4 })
+  async function recordInterest(answer: 'yes' | 'not-yet') {
+    if (interestStatus === 'saving' || interest) return
+    setInterestStatus('saving')
+    const stored = await postEvent('pricing_interest', { answer, proposedMonthlyPriceUsd: 4 })
+    if (stored) {
+      setInterest(answer)
+      setInterestStatus('idle')
+    } else {
+      setInterestStatus('error')
+    }
   }
 
   const diff = useMemo(() => analysis ? wordDiff(source, checkedOutput) : [], [analysis, source, checkedOutput])
@@ -255,9 +264,13 @@ export default function App() {
           {interest ? (
             <div className="interest-thanks"><Icon name="check" /> Thanks—your answer was recorded.</div>
           ) : (
-            <div className="interest-actions">
-              <button type="button" onClick={() => recordInterest('yes')}>Yes, if it works</button>
-              <button type="button" onClick={() => recordInterest('not-yet')}>Not yet</button>
+            <div className="interest-response">
+              <div className="interest-actions">
+                <button type="button" disabled={interestStatus === 'saving'} onClick={() => void recordInterest('yes')}>Yes, if it works</button>
+                <button type="button" disabled={interestStatus === 'saving'} onClick={() => void recordInterest('not-yet')}>Not yet</button>
+              </div>
+              {interestStatus === 'saving' && <p role="status">Saving your answer…</p>}
+              {interestStatus === 'error' && <p role="alert">Your answer was not saved. Please try again.</p>}
             </div>
           )}
         </section>
