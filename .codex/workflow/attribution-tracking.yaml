@@ -1,6 +1,6 @@
 change_id: attribution-tracking
 task_type: c-end-existing-medium
-current_phase: ship
+current_phase: qa
 artifacts:
   - docs/attribution-tracking.md
 gate_results:
@@ -12,6 +12,8 @@ gate_results:
   review: passed_no_p0_p1_production_gate_pending
   main_recheck: main_23783f5_lint_38_unit_build_16_e2e_passed_test_session_zero
   release_authorization: user_confirmed_merge_push_production_e2e_and_precise_test_cleanup
-last_verified_at: 2026-09-30T14:06:52Z
-next_action: Push main after pre-push signoff, verify Git-sourced production deployment and real browser storage, then clean only the fixed E2E session.
+  production: git_deployed_f70176e_ready_initial_14_of_16_then_attribution_targeted_2_of_2_after_test_race_fix
+  diagnostic_cleanup: fixed_e2e_session_58_deleted_zero_remaining
+last_verified_at: 2026-09-30T14:37:00Z
+next_action: Record QA evidence, commit and push race-free E2E, then run full production acceptance and clean fixed test session.
 blockers: []

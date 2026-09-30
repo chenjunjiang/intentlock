@@ -55,31 +55,34 @@ test.afterEach(async ({ page }) => {
   expect(browserErrors.get(page) ?? []).toEqual([])
 })
 
-test('records only normalized attribution and keeps internal marking local', async ({ page }, testInfo) => {
-  const firstVisit = page.waitForRequest((request) => {
-    if (new URL(request.url()).pathname !== '/api/e') return false
-    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
+async function navigateAndWaitForVisit(page: Page, path: string, expected: { channel: string; internal: boolean }) {
+  const visitResponse = page.waitForResponse((response) => {
+    if (new URL(response.url()).pathname !== '/api/e') return false
+    const event = parseProductEvent(response.request().postDataJSON())
+    return event?.eventName === 'visit'
+      && event.metadata.channel === expected.channel
+      && event.metadata.internal === expected.internal
   })
-  await page.goto('/?il_internal=1&utm_source=reddit&utm_campaign=private')
-  const firstEvent = parseProductEvent((await firstVisit).postDataJSON())
+  await page.goto(path)
+  const response = await visitResponse
+  expect(response.status()).toBe(204)
+  expect(response.headers()['x-intentlock-storage']).toBe('stored')
+  await expect.poll(() => telemetryResponses.get(page) ?? 0).toBe(telemetryCounts.get(page) ?? 0)
+  return parseProductEvent(response.request().postDataJSON())
+}
+
+test('records only normalized attribution and keeps internal marking local', async ({ page }, testInfo) => {
+  const firstEvent = await navigateAndWaitForVisit(page, '/?il_internal=1&utm_source=reddit&utm_campaign=private', { channel: 'reddit', internal: true })
   expect(firstEvent?.metadata).toEqual({ channel: 'reddit', internal: true })
   expect(new URL(page.url()).searchParams.has('il_internal')).toBe(false)
   await expect.poll(() => page.evaluate(() => localStorage.getItem('intentlock_internal'))).toBe('1')
   await page.screenshot({ path: testInfo.outputPath('attribution.png'), fullPage: true })
 
-  const returningVisit = page.waitForRequest((request) => {
-    if (new URL(request.url()).pathname !== '/api/e') return false
-    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
-  })
-  await page.goto('/')
-  expect(parseProductEvent((await returningVisit).postDataJSON())?.metadata).toEqual({ channel: 'direct', internal: true })
+  const returningEvent = await navigateAndWaitForVisit(page, '/', { channel: 'direct', internal: true })
+  expect(returningEvent?.metadata).toEqual({ channel: 'direct', internal: true })
 
-  const clearedVisit = page.waitForRequest((request) => {
-    if (new URL(request.url()).pathname !== '/api/e') return false
-    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
-  })
-  await page.goto('/?il_internal=0')
-  expect(parseProductEvent((await clearedVisit).postDataJSON())?.metadata).toEqual({ channel: 'direct', internal: false })
+  const clearedEvent = await navigateAndWaitForVisit(page, '/?il_internal=0', { channel: 'direct', internal: false })
+  expect(clearedEvent?.metadata).toEqual({ channel: 'direct', internal: false })
   expect(new URL(page.url()).searchParams.has('il_internal')).toBe(false)
 })
 

@@ -24,6 +24,14 @@
 - 主分支本轮归因场景桌面/移动截图与上方已实际查看的归档截图 SHA-256 逐字节一致；无新增视觉问题，浏览器 Console 与页面异常仍为 0。生产固定测试 session `intentlock-e2e-session` 在发布前只读预检为 0 条，本轮本地 E2E 未写入生产。
 - 仍待验证：GitHub `main` 推送是否自动生成对应提交的 Vercel 生产部署、稳定域名是否指向它、生产 Edge → Supabase 对新元数据的真实写入、生产桌面/移动 16/16 E2E 与测试数据清理。未完成前不称本功能已上线。
 
+### 2026-09-30 Git 自动部署与首次生产验收调试
+
+- `main@f70176e0e26240054c5177d33793828b32d42b21` 推送后，Vercel 自动生成生产部署 `dpl_8bagSYwuPAZZrvg4cLgEqnWd1HGL`，状态 `READY`，Git 元数据对应 `chenjunjiang/intentlock`、`main` 和该提交；稳定域名 `https://intentlock-nine.vercel.app` 指向它。没有执行直接部署命令。
+- 首次生产完整 E2E 为 14/16：桌面/移动归因场景在 `afterEach` 中观测到 3 次请求却只观测到 1 次响应，其他场景通过。假设是连续 `page.goto()` 太快，测试在请求发出后就离开页面；只读查库发现预期访问事件实际存储，故不是 Edge→Supabase 丢写。根因是测试仅等待请求、没有等待存储响应，随后页面导航与响应监听竞态。
+- 最小修复仅在 `e2e/main-flow.spec.ts`：每次导航等待与预期 `{channel, internal}` 匹配的 `visit` 响应，确认 204/`stored`，并等遥测请求/响应计数相等；没有修改业务实现或放松断言。首次修复在本地 Vite 的 StrictMode 重复访问中错配旧响应，故又加入元数据匹配。最终按序 `bun run lint`、`bun run test`（38/38）、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`（16/16）通过，0 skip/xfail；对当前生产版本定向复验桌面/移动 2/2 通过。
+- 固定生产测试会话 `intentlock-e2e-session` 只读预检为 58 条，来自首次完整 E2E 与两次定向复验。核对清理脚本仅删除该精确 session 后，运行 `bun run test:e2e:cleanup --execute`：删除 58 条，复查剩余 0 条；其他会话未删除。终端 `curl` 首页和健康接口均超时，只说明该终端网络路径不可用，不能据此判定网站失败；待用真实浏览器网络路径复查。
+- 此时完整生产 E2E 尚未用最终测试文件重新执行，QA/verify/review/ship 门控仍未完成。
+
 ## 环境
 
 - Bun 1.3.14
