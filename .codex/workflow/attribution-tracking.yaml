@@ -1,6 +1,6 @@
 change_id: attribution-tracking
 task_type: c-end-existing-medium
-current_phase: review
+current_phase: ship
 artifacts:
   - docs/attribution-tracking.md
 gate_results:
@@ -10,6 +10,8 @@ gate_results:
   qa: lint_38_unit_build_16_e2e_passed_local_after_referrer_fix
   verify: ac1_to_ac5_semantically_covered_local_production_gate_pending
   review: passed_no_p0_p1_production_gate_pending
-last_verified_at: 2026-09-30T13:48:00Z
-next_action: Keep the reviewed branch committed locally; request separate authorization before merging or pushing production main.
+  main_recheck: main_23783f5_lint_38_unit_build_16_e2e_passed_test_session_zero
+  release_authorization: user_confirmed_merge_push_production_e2e_and_precise_test_cleanup
+last_verified_at: 2026-09-30T14:06:52Z
+next_action: Push main after pre-push signoff, verify Git-sourced production deployment and real browser storage, then clean only the fixed E2E session.
 blockers: []
