@@ -1,6 +1,6 @@
 # 访问归因与内部流量标记
 
-状态：2026-09-30，C 端存量项目中等变更；用户确认继续处理真实行为数据的口径问题。无页面视觉改动，无新服务、依赖或数据库迁移。
+状态：2026-09-30 已通过 GitHub `main` 自动部署并完成生产真实入口验收；C 端存量项目中等变更。无页面视觉改动，无新服务、依赖或数据库迁移。证据见 `docs/qa-report.md`。
 
 ## 目标与边界
 
@@ -21,7 +21,7 @@
 3. `src/App.tsx`：访问时读取归因、更新本机标记、移除内部参数，再以 `no-referrer` 发送事件；`tests/App.test.tsx` 和 `e2e/main-flow.spec.ts` 验证真实浏览器请求、地址栏、来源头、上报失败不阻断及主流程。
 4. 同步 `README.md` 和本文件的统计口径；运行 `bun run lint`、`bun run test`、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`，然后分别执行需求核对与独立代码审查。
 
-生产发布仍按 `docs/deployment-workflow.md`：提交、主分支验证、单独 push 签退、Git 自动部署、生产真实入口复验和测试数据精确清理。未获独立 push 授权前，不声称该归因功能已经上线。
+生产发布按 `docs/deployment-workflow.md` 完成：提交、主分支验证、单独 push 签退、Git 自动部署、生产真实入口复验和测试数据精确清理。上线只代表技术链路可用，不能据此声称产品需求得到验证。
 
 ## 上线后的只读漏斗查询
 
@@ -67,4 +67,4 @@ ORDER BY visits DESC, channel, internal;
 
 推广时仅分享带白名单 UTM 的链接，例如 `https://intentlock-nine.vercel.app/?utm_source=reddit`；历史未加标签的 Reddit/X 链接无法可靠反推来源。不能用本查询的低样本结果宣称市场需求或付费意愿成立。
 
-2026-09-30 已在当前生产库执行这条只读 SQL：返回 `historical_unknown / unknown` 9 次访问、9 个浏览器标识，其余四项行为窗口均为 0；新归因代码尚未发布，不能把这 9 次访问归类为任何渠道或真人。
+2026-09-30 在归因功能生产上线、固定 E2E 会话清零后再次执行这条只读 SQL：返回 `historical_unknown / unknown` 9 次访问、9 个浏览器标识，其余四项行为窗口均为 0；尚无新归因来源的非测试访问，不能把这 9 次历史访问归类为任何渠道或真人。

@@ -32,6 +32,17 @@
 - 固定生产测试会话 `intentlock-e2e-session` 只读预检为 58 条，来自首次完整 E2E 与两次定向复验。核对清理脚本仅删除该精确 session 后，运行 `bun run test:e2e:cleanup --execute`：删除 58 条，复查剩余 0 条；其他会话未删除。终端 `curl` 首页和健康接口均超时，只说明该终端网络路径不可用，不能据此判定网站失败；待用真实浏览器网络路径复查。
 - 此时完整生产 E2E 尚未用最终测试文件重新执行，QA/verify/review/ship 门控仍未完成。
 
+### 2026-09-30 访问归因生产验收与独立核对
+
+- `main@da241067105282e4c318201a4b6dbae52879c5a9` 经 GitHub 推送自动生成生产部署 `dpl_9y5oY9Per8uHj92LC8hPNeY6Verb`，状态 `READY`；Vercel 显示仓库 `chenjunjiang/intentlock`、分支 `main` 和该 SHA，稳定域名 `intentlock-nine.vercel.app` 的部署检查指向同一版本。未使用 CLI 直接发布。
+- 在该稳定域名运行 `E2E_BASE_URL=https://intentlock-nine.vercel.app PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`：桌面与 Pixel 7 共 16/16 通过，0 skip/xfail。真实 `/api/e` 的每个归因访问返回 204/`stored`；原有主流程、失败重试、Console/pageerror 与无 `Referer` 请求头断言均通过。
+- 本轮生产归因场景桌面/移动截图已实际查看，与 [已归档桌面图](evidence/attribution-tracking/desktop.png) 和 [移动图](evidence/attribution-tracking/mobile.png) 的 SHA-256 分别逐字节一致。桌面双栏、移动单栏无明显遮挡、截断或横向溢出；归档图仅含合成示例。
+- E2E 后只读预检固定 `intentlock-e2e-session` 为 46 条；运行 `bun run test:e2e:cleanup --execute` 精确删除 46 条、复查 0 条。另一次调试清理为 58 条、复查 0 条，合计清理 104 条合成测试事件；其他会话未删除。删除的测试事件无法从该表恢复。
+- 系统 Chrome 关闭 JavaScript 后访问生产首页和 `/api/e?health=1`，均为 HTTP 200；健康响应 `degraded:false`、`storage:supabase`、`ingestFailures:0`。首页和健康接口均返回 CSP（禁止嵌入）、HSTS、`nosniff`、Referrer-Policy 和禁用摄像头/麦克风/定位的 Permissions-Policy。该检查在最终代码部署 `da24106` 后重新执行。
+- 固定测试会话清零后，按 `docs/attribution-tracking.md` 的只读窗口 SQL 排除 E2E：仍只有 `historical_unknown / unknown` 9 次访问、9 个浏览器标识，带检查/复用/复制/价格兴趣的访问均为 0。没有新归因来源的非测试行为可供分析；这些浏览器标识也不能等同真人。
+
+需求完整性 verify（与 code review 分开执行）：AC-1 的事件白名单、请求无 `Referer` 与生产存储响应；AC-2 的来源优先级；AC-3 的内部标记设置、清除和地址栏移除；AC-4 的旧事件兼容与排除固定测试会话的只读 SQL；AC-5 的核心流程不受上报失败影响，均对应单测/API/组件/真实 UI 证据。未发现验收缺口。独立 code/release review：复查测试修复只增加与预期事件匹配的存储响应等待，不删除原断言；Git 提交、生产部署 SHA、域名别名、健康和测试数据清理相符；未发现 P0/P1。剩余风险：当前 9 次历史访问没有归因和完成行为，不能证明需求、留存或付费意愿；内部标记由本机自报，未标记不代表真实外部用户。
+
 ## 环境
 
 - Bun 1.3.14

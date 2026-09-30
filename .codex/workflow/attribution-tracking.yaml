@@ -1,6 +1,6 @@
 change_id: attribution-tracking
 task_type: c-end-existing-medium
-current_phase: qa
+current_phase: ship
 artifacts:
   - docs/attribution-tracking.md
 gate_results:
@@ -14,6 +14,10 @@ gate_results:
   release_authorization: user_confirmed_merge_push_production_e2e_and_precise_test_cleanup
   production: git_deployed_f70176e_ready_initial_14_of_16_then_attribution_targeted_2_of_2_after_test_race_fix
   diagnostic_cleanup: fixed_e2e_session_58_deleted_zero_remaining
-last_verified_at: 2026-09-30T14:37:00Z
-next_action: Record QA evidence, commit and push race-free E2E, then run full production acceptance and clean fixed test session.
+  qa: production_da24106_ready_desktop_mobile_16_of_16_health_and_security_passed_test_session_zero
+  verify: ac1_to_ac5_complete_no_acceptance_gap
+  review: no_p0_p1_test_race_fix_preserves_assertions_and_git_release_reconciled
+  behavior_sample: nine_historical_unknown_visits_zero_checks_no_new_attributed_non_test_visits
+last_verified_at: 2026-09-30T14:40:00Z
+next_action: Monitor non-test attributed visits and completed checks; do not infer demand or payment intent from the current sample.
 blockers: []
