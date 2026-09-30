@@ -1,10 +1,36 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
 
 describe('IntentLock main flow', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204, headers: { 'x-intentlock-storage': 'stored' } })))
+  })
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('sends normalized channel and internal marker on visit', async () => {
+    window.history.replaceState({}, '', '/?il_internal=1&utm_source=reddit&utm_campaign=private')
+    render(<App />)
+
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      const visitCall = calls.find(([, options]) => JSON.parse(String(options?.body)).eventName === 'visit')
+      expect(visitCall).toBeDefined()
+      expect(JSON.parse(String(visitCall?.[1]?.body)).metadata).toEqual({ channel: 'reddit', internal: true })
+      expect(visitCall?.[1]?.referrerPolicy).toBe('no-referrer')
+    })
+    expect(localStorage.getItem('intentlock_internal')).toBe('1')
+    expect(window.location.search).toBe('?utm_source=reddit&utm_campaign=private')
+  })
+
+  it('keeps local checking available when visit telemetry fails', () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Check meaning' }))
+    expect(screen.getByRole('heading', { name: /possible meaning changes/i })).toBeInTheDocument()
   })
 
   it('shows semantic risks for the example rewrite', () => {

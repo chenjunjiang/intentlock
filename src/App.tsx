@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { compareLocks, conservativeRewrite, wordDiff, type Risk } from './lib/intent-lock'
+import { getVisitAttribution } from './lib/attribution'
 import './App.css'
 
 type Mode = 'compare' | 'fix'
@@ -56,7 +57,10 @@ export default function App() {
   const [interestStatus, setInterestStatus] = useState<'idle' | 'saving' | 'error'>('idle')
 
   useEffect(() => {
-    void postEvent('visit', {}, sessionId)
+    const visit = getVisitAttribution(window.location.href, document.referrer, localStorage.getItem('intentlock_internal') === '1')
+    localStorage.setItem('intentlock_internal', visit.internal ? '1' : '0')
+    if (visit.cleanUrl !== null) window.history.replaceState(window.history.state, '', visit.cleanUrl)
+    void postEvent('visit', { channel: visit.channel, internal: visit.internal }, sessionId)
   }, [sessionId])
 
   async function postEvent(eventName: string, metadata: Record<string, unknown> = {}, id = sessionId) {
@@ -67,6 +71,7 @@ export default function App() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ eventName, sessionId: id, metadata }),
         keepalive: true,
+        referrerPolicy: 'no-referrer',
       })
       return response.status === 204 && response.headers.get('x-intentlock-storage') === 'stored'
     } catch {

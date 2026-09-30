@@ -40,6 +40,20 @@ describe('event API guardrails', () => {
     expect(response.status).toBe(400)
   })
 
+  it('accepts normalized attribution and rejects raw campaign data', async () => {
+    const validResponse = await handler(new Request('https://intentlock.example/api/e', {
+      method: 'POST',
+      body: JSON.stringify({ eventName: 'visit', sessionId: 'session-123', metadata: { channel: 'reddit', internal: false } }),
+    }))
+    expect(validResponse.status).toBe(204)
+
+    const invalidResponse = await handler(new Request('https://intentlock.example/api/e', {
+      method: 'POST',
+      body: JSON.stringify({ eventName: 'visit', sessionId: 'session-123', metadata: { channel: 'reddit', internal: false, utmSource: 'private value' } }),
+    }))
+    expect(invalidResponse.status).toBe(400)
+  })
+
   it('degrades without blocking when storage is not configured', async () => {
     const response = await handler(new Request('https://intentlock.example/api/e', {
       method: 'POST',

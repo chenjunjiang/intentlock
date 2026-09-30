@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { parseProductEvent } from '../src/lib/event'
 
 describe('anonymous event protocol', () => {
+  it('accepts only normalized visit attribution values', () => {
+    const visit = { eventName: 'visit', sessionId: 'session-123', metadata: { channel: 'reddit', internal: true } }
+    expect(parseProductEvent(visit)).toEqual(visit)
+    expect(parseProductEvent({ ...visit, metadata: { channel: 'private-user-name', internal: false } })).toBeNull()
+    expect(parseProductEvent({ ...visit, metadata: { channel: 'reddit', internal: 'false' } })).toBeNull()
+    expect(parseProductEvent({ ...visit, metadata: { channel: 'reddit', internal: false, url: 'https://example.com/private' } })).toBeNull()
+    expect(parseProductEvent({ eventName: 'visit', sessionId: 'session-123', metadata: {} })).not.toBeNull()
+  })
+
   it('accepts an allowlisted aggregate event', () => {
     const event = {
       eventName: 'analysis_completed',

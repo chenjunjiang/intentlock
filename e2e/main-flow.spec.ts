@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname !== '/api/e') errors.push(`telemetry: unexpected path ${url.pathname}`)
     if (url.origin !== new URL(page.url()).origin) errors.push('telemetry: unexpected origin')
     if (request.method() !== 'POST') errors.push(`telemetry: unexpected method ${request.method()}`)
+    if (request.headers().referer) errors.push('telemetry: Referer header must be omitted')
     try {
       if (!parseProductEvent(request.postDataJSON())) {
         errors.push('telemetry: event failed the production parser')
@@ -52,6 +53,34 @@ test.afterEach(async ({ page }) => {
   expect(telemetryCounts.get(page) ?? 0).toBeGreaterThan(0)
   await expect.poll(() => telemetryResponses.get(page) ?? 0).toBe(telemetryCounts.get(page) ?? 0)
   expect(browserErrors.get(page) ?? []).toEqual([])
+})
+
+test('records only normalized attribution and keeps internal marking local', async ({ page }, testInfo) => {
+  const firstVisit = page.waitForRequest((request) => {
+    if (new URL(request.url()).pathname !== '/api/e') return false
+    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
+  })
+  await page.goto('/?il_internal=1&utm_source=reddit&utm_campaign=private')
+  const firstEvent = parseProductEvent((await firstVisit).postDataJSON())
+  expect(firstEvent?.metadata).toEqual({ channel: 'reddit', internal: true })
+  expect(new URL(page.url()).searchParams.has('il_internal')).toBe(false)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('intentlock_internal'))).toBe('1')
+  await page.screenshot({ path: testInfo.outputPath('attribution.png'), fullPage: true })
+
+  const returningVisit = page.waitForRequest((request) => {
+    if (new URL(request.url()).pathname !== '/api/e') return false
+    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
+  })
+  await page.goto('/')
+  expect(parseProductEvent((await returningVisit).postDataJSON())?.metadata).toEqual({ channel: 'direct', internal: true })
+
+  const clearedVisit = page.waitForRequest((request) => {
+    if (new URL(request.url()).pathname !== '/api/e') return false
+    return parseProductEvent(request.postDataJSON())?.eventName === 'visit'
+  })
+  await page.goto('/?il_internal=0')
+  expect(parseProductEvent((await clearedVisit).postDataJSON())?.metadata).toEqual({ channel: 'direct', internal: false })
+  expect(new URL(page.url()).searchParams.has('il_internal')).toBe(false)
 })
 
 test('checks an unsafe AI rewrite from the real UI', async ({ page }, testInfo) => {

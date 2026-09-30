@@ -1,0 +1,15 @@
+change_id: attribution-tracking
+task_type: c-end-existing-medium
+current_phase: review
+artifacts:
+  - docs/attribution-tracking.md
+gate_results:
+  scope: confirmed_by_user_continue
+  plan: checked_ac1_to_ac5
+  implementation: complete_local
+  qa: lint_38_unit_build_16_e2e_passed_local_after_referrer_fix
+  verify: ac1_to_ac5_semantically_covered_local_production_gate_pending
+  review: passed_no_p0_p1_production_gate_pending
+last_verified_at: 2026-09-30T13:48:00Z
+next_action: Keep the reviewed branch committed locally; request separate authorization before merging or pushing production main.
+blockers: []

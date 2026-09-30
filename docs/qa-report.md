@@ -1,6 +1,21 @@
 # IntentLock QA 报告
 
-日期：2026-09-29
+更新：2026-09-30
+
+## 2026-09-30 本地候选：访问归因与内部流量标记
+
+- 范围：只扩充 `visit` 的严格元数据；无数据库迁移、无新依赖、无可见 UI 变更。生产基线只读查询为 9 个浏览器标识、9 次访问，完成检查等后续事件为 0；旧访问均无来源信息。
+- TDD：新测试先在旧实现上失败；复查发现 `utm_source=constructor` 命中普通对象原型，回归测试先红后改为 `Map` 通过。验收追溯还发现默认同源请求附带 `Referer`；桌面/移动真实浏览器测试先各自失败，设置 `referrerPolicy: 'no-referrer'` 后通过。旧 API/UI 主流程用例未放宽。
+- 当前工作树 `codex/attribution-tracking`：最后一次源码修改后 `bun run lint` 通过；`bun run test` 5 文件 38/38 通过，0 skip/xfail；`bun run build` 通过；`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e` 在本地 Vite 的桌面与 Pixel 7 共 16/16 通过，0 skip/xfail；最终文档修改后 `git diff --check` 通过。
+- AC-1/2：服务端解析器只接受渠道枚举与内部布尔值；单测覆盖已知 UTM、Referrer 主机名、伪造子域、未知值及原型属性。API 测试确认原始活动字段被拒绝。
+- AC-3：组件和真实浏览器 E2E 核对 `/api/e` 请求仅含 `{channel, internal}`，且请求头没有 `Referer`；内部参数从地址栏删除，标记可持续且可清除。浏览器 E2E 亦断言 Console 与页面异常为 0。
+- AC-4/5：空元数据旧 `visit` 仍被接受；访问上报失败时本地检查仍可用；现有危险改写、最小修正、价格反馈和存储降级重试等桌面/移动主链路全通过。只读漏斗 SQL 已对当前生产库执行，返回“历史未知”9 次访问、9 个浏览器标识，其他行为窗口均为 0；查询和口径见 `docs/attribution-tracking.md`。
+- 最后一次前端源码修改后的新场景截图已实际查看，并与归档图逐字节哈希一致：[桌面](evidence/attribution-tracking/desktop.png) / [移动](evidence/attribution-tracking/mobile.png)。仅含合成示例文本，无凭据或真实用户内容；双栏/单栏、按钮、编辑器、页脚均无遮挡、截断或横向溢出。
+- 本轮 E2E 仅连本地 Vite，遥测响应被模拟；没有向生产事件表写入，因此生产测试数据清理不适用。**生产 Edge → Supabase 的新元数据写入尚未验证，功能尚未发布。** 发布需单独 push 授权，Git 自动部署后从生产 UI 复验并精确清理固定 E2E 会话。
+
+需求完整性 verify（独立 pass）：AC-1 的事件 JSON、白名单及无 `Referer` 请求头；AC-2 的来源优先级和未知值；AC-3 的标记开关与 URL 清除；AC-4 的旧事件兼容和生产只读 SQL；AC-5 的上报失败不阻断与原有主链路，均有语义对应的测试和上述证据。**本地覆盖通过；生产集成门控未通过，因为尚未发布。**
+
+代码审查（独立 pass）：检查了 UTM 原型链属性、Referrer 主机边界、事件解析白名单、内部标记持久化、异步上报、旧事件兼容、E2E 测试隔离及归档截图。未发现 P0/P1。剩余风险：内部标记是浏览器本机自报，不是身份认证；浏览器标识不是独立真人；页面首次请求仍向托管服务暴露普通 URL/IP；生产新版本及真实 Supabase 写入仍待发布复验。
 
 ## 环境
 

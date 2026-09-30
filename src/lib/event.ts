@@ -6,10 +6,16 @@ export const ALLOWED_EVENTS = new Set([
   'pricing_interest',
 ])
 
+export const VISIT_CHANNELS = [
+  'reddit', 'x', 'youtube', 'tiktok', 'product-hunt', 'quora', 'google', 'direct', 'other',
+] as const
+
+export type VisitChannel = typeof VISIT_CHANNELS[number]
+
 const ALLOWED_EVENT_KEYS = new Set(['eventName', 'sessionId', 'metadata'])
 
 const ALLOWED_METADATA_KEYS: Record<string, Set<string>> = {
-  visit: new Set(),
+  visit: new Set(['channel', 'internal']),
   analysis_completed: new Set(['mode', 'riskCount', 'reviewCount', 'lockCount', 'lengthBucket']),
   repeat_use: new Set(['checks']),
   result_copied: new Set(['mode']),
@@ -41,5 +47,9 @@ export function parseProductEvent(input: unknown): ProductEvent | null {
     if (typeof value === 'number') return Number.isFinite(value)
     return typeof value === 'string' || typeof value === 'boolean'
   })) return null
+  if (candidate.eventName === 'visit') {
+    if ('channel' in metadata && !VISIT_CHANNELS.includes(metadata.channel as VisitChannel)) return null
+    if ('internal' in metadata && typeof metadata.internal !== 'boolean') return null
+  }
   return { eventName: candidate.eventName, sessionId: candidate.sessionId, metadata }
 }
