@@ -1,6 +1,29 @@
 # IntentLock QA 报告
 
-更新：2026-09-30
+更新：2026-10-02
+
+## 2026-10-02 收尾：错误绿灯与匿名漏斗（10-01 本地验证）
+
+- 代码状态：`main@8047128` 上的未提交工作区；本轮改动尚未推送或部署。截图对应 `src/App.tsx` SHA-256 `c9aea38f67b68c33208e6fe70d630c6cd28312a48440f6eb1080112104c50a89`、`src/lib/intent-lock.ts` `33fe458b07101becff520c60fc6acb34fad0ae4f79aeda41783a730ea9d112bd`、`src/lib/event.ts` `e59b33dfd94a58dce2755bea7bf5ee81c08dc46199a9a3611cfa7d8be7b7c5b7`、`e2e/main-flow.spec.ts` `955f6846fc5ba20865b30889b805f94634b276bf018cfd5034b1dfc1d4b688ca`。
+- 调试假设与实验：比较器的无序内容词比较、功能词过滤及保护项子串匹配会造成错误绿灯；内置 `ask → asked` 改变时态；编辑后旧结果未失效。用现有 `compareLocks` 的 `bun -e` 复现角色互换、代词互换与时态问题，再补回归测试。新测试在旧实现上 9 项失败；补充旧结果与大小写边界时，又先见到 2 项失败。
+- 观察与根因：`Alice pays Bob → Bob pays Alice`、`He approved it → She approved it` 原先均无风险与复核；`Sam` 可被 `Samantha` 的子串冒充保留；编辑已检查文本后旧绿色标题仍显示。根因是无序词袋、大小写折叠、无边界子串匹配与结果状态未随输入失效。
+- 最小修复：保护项改为整值边界匹配；绿色情况要求受控归一化后的有序词及标点序列一致；代词、大小写、词序和标点变化进入黄色复核；移除 `ask → asked`；编辑或切换模式立即清除旧结果。匿名事件只增加空元数据的首次编辑，以及检查完成的 `inputKind`、`resultState` 枚举；迁移文件扩充事件名约束，生产执行尚待发布门控。
+- 最终验证：按序运行 `bun run lint`（通过）、`bun run test`（5 文件 50/50，通过，0 skip/xfail）、`bun run build`（通过）、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`（本地 Vite，桌面与 Pixel 7 共 22/22，通过，0 skip/xfail）；`git diff --check` 通过。E2E 对每个 `/api/e` 请求核对同源、POST、无 `Referer`、生产解析器可接受，以及 204/`stored` 模拟响应；Console error 与页面异常为 0。
+
+| Scenario | 浏览器步骤与 DOM/视觉结论 | 桌面 / 移动证据 |
+| --- | --- | --- |
+| 危险改写 | 检查默认示例，4 项红色风险仍出现；保护项和差异可见 | [桌面](evidence/false-green-funnel/danger-desktop.png) / [移动](evidence/false-green-funnel/danger-mobile.png) |
+| 受控最小修正 | 切换修正模式并执行，绿色结果与保留保护项说明正确 | [桌面](evidence/false-green-funnel/safe-desktop.png) / [移动](evidence/false-green-funnel/safe-mobile.png) |
+| 角色互换与匿名漏斗 | 输入 `Alice pays Bob → Bob pays Alice` 后显示黄色复核；网络请求恰有一次空元数据首次编辑，检查事件仅有 `custom/review` 枚举，无写作文本 | [桌面](evidence/false-green-funnel/roles-desktop.png) / [移动](evidence/false-green-funnel/roles-mobile.png) |
+| 代词变化 | 输入 `I approved it → We approved it`，显示黄色及删除/新增代词 | [桌面](evidence/false-green-funnel/pronoun-desktop.png) / [移动](evidence/false-green-funnel/pronoun-mobile.png) |
+| 标点变化 | 输入 `Please eat, Grandma → Please eat Grandma`，显示黄色；`Grandma` 保护项清晰 | [桌面](evidence/false-green-funnel/punctuation-desktop.png) / [移动](evidence/false-green-funnel/punctuation-mobile.png) |
+| 旧绿色失效 | 先完成绿色修正，再编辑原文；旧结果和复制按钮立即消失 | [桌面](evidence/false-green-funnel/after-edit-desktop.png) / [移动](evidence/false-green-funnel/after-edit-mobile.png) |
+
+以上 12 张最终代码状态截图均已实际查看，只有合成示例文本，无凭据或真实用户内容；桌面双栏、移动单栏、结果卡片和按钮未见明显截断、遮挡、横向溢出或重叠。浏览器 E2E 走真实本地 UI，但本地 Vite 对事件接口模拟 204/`stored`；API handler 单测的 Supabase 请求也使用 mock，因此**生产迁移、真实 Edge → Supabase 写入及新版只读 SQL 尚未验证**。本轮没有向共享服务写测试数据，清理不适用。
+
+需求完整性核对（独立 pass）：AC-1 对应边界、顺序、代词、大小写、标点与结果失效的单元/组件/E2E；AC-2 对应最小修正、`may → might` 与时态单测；AC-3 对应事件白名单、handler、组件及浏览器请求体；AC-4 对应漏斗 SQL 与历史未知口径；AC-5 对应已有遥测失败不阻断检查及新增迁移顺序。未发现本地验收缺项；AC-4 的真实数据库执行与 AC-5 的生产存储仍待发布后验证，完整生产 QA 门控未通过。
+
+独立代码审查：检查了结果状态失效、保护项边界、枚举白名单、原文不出网、旧事件兼容、迁移约束和漏斗分母；本地 diff 未见 P0/P1。剩余风险：异步事件可能在服务端以不同顺序写入，紧邻访问边界的漏斗窗口会归错或漏计；上报失败/限流使指标低估；绿色仍是规则判断而非完整语义证明；迁移 SQL 和只读查询尚未在真实 PostgreSQL/生产库执行。发布前必须先执行迁移，再经单独授权推送、Git 自动部署和真实入口复验。
 
 ## 2026-09-30 本地候选：访问归因与内部流量标记
 

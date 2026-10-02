@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { compareLocks, conservativeRewrite, wordDiff, type Risk } from './lib/intent-lock'
 import { getVisitAttribution } from './lib/attribution'
 import './App.css'
@@ -55,6 +55,7 @@ export default function App() {
   const [copied, setCopied] = useState(false)
   const [interest, setInterest] = useState<'yes' | 'not-yet' | null>(null)
   const [interestStatus, setInterestStatus] = useState<'idle' | 'saving' | 'error'>('idle')
+  const editTracked = useRef(false)
 
   useEffect(() => {
     const visit = getVisitAttribution(window.location.href, document.referrer, localStorage.getItem('intentlock_internal') === '1')
@@ -79,6 +80,37 @@ export default function App() {
     }
   }
 
+  function trackFirstEdit() {
+    if (editTracked.current) return
+    editTracked.current = true
+    void postEvent('input_edited')
+  }
+
+  function invalidateResult() {
+    setAnalysis(null)
+    setCheckedOutput('')
+    setCopied(false)
+    setNotice('')
+  }
+
+  function selectMode(nextMode: Mode) {
+    if (nextMode === mode) return
+    setMode(nextMode)
+    invalidateResult()
+  }
+
+  function editSource(value: string) {
+    setSource(value)
+    invalidateResult()
+    trackFirstEdit()
+  }
+
+  function editRewrite(value: string) {
+    setRewrite(value)
+    invalidateResult()
+    trackFirstEdit()
+  }
+
   function runCheck() {
     setNotice('')
     setCopied(false)
@@ -100,6 +132,8 @@ export default function App() {
     localStorage.setItem('intentlock_usage', String(nextCount))
     void postEvent('analysis_completed', {
       mode,
+      inputKind: source === SAMPLE_SOURCE && (mode === 'fix' || rewrite === SAMPLE_REWRITE) ? 'sample' : 'custom',
+      resultState: result.risks.length ? 'danger' : result.reviews.length ? 'review' : 'safe',
       riskCount: result.risks.length,
       reviewCount: result.reviews.length,
       lockCount: result.locks.length,
@@ -159,8 +193,8 @@ export default function App() {
       <section className="workspace" id="workspace" aria-label="Semantic safety checker">
         <div className="toolbar">
           <div className="mode-group" role="group" aria-label="Check mode">
-            <button type="button" className={mode === 'compare' ? 'mode active' : 'mode'} onClick={() => setMode('compare')}>Check an AI rewrite</button>
-            <button type="button" className={mode === 'fix' ? 'mode active' : 'mode'} onClick={() => setMode('fix')}>Minimal grammar fix</button>
+            <button type="button" className={mode === 'compare' ? 'mode active' : 'mode'} onClick={() => selectMode('compare')}>Check an AI rewrite</button>
+            <button type="button" className={mode === 'fix' ? 'mode active' : 'mode'} onClick={() => selectMode('fix')}>Minimal grammar fix</button>
           </div>
           <div className="free-count"><span>Free</span> during beta · {usageCount} checks on this device</div>
         </div>
@@ -169,7 +203,7 @@ export default function App() {
           <article className="editor-panel">
             <div className="panel-label"><span>1</span> Original</div>
             <label className="sr-only" htmlFor="source">Original English text</label>
-            <textarea id="source" value={source} onChange={(event) => setSource(event.target.value)} spellCheck={false} maxLength={5000} />
+            <textarea id="source" value={source} onChange={(event) => editSource(event.target.value)} spellCheck={false} maxLength={5000} />
             <small>{source.length} / 5,000</small>
           </article>
 
@@ -177,7 +211,7 @@ export default function App() {
             <article className="editor-panel">
               <div className="panel-label"><span>2</span> AI rewrite</div>
               <label className="sr-only" htmlFor="rewrite">AI rewritten English text</label>
-              <textarea id="rewrite" value={rewrite} onChange={(event) => setRewrite(event.target.value)} spellCheck={false} maxLength={5000} />
+              <textarea id="rewrite" value={rewrite} onChange={(event) => editRewrite(event.target.value)} spellCheck={false} maxLength={5000} />
               <small>{rewrite.length} / 5,000</small>
             </article>
           )}
@@ -243,7 +277,7 @@ export default function App() {
               <article className="review-card" key={`${review.category}-${index}`}>
                 <Icon name="alert" size={22} />
                 <div>
-                  <strong>Important wording changed</strong>
+                  <strong>{review.removed.length || review.added.length ? 'Important wording changed' : 'Word order or punctuation changed'}</strong>
                   <p>{review.explanation} Review the highlighted wording before sending.</p>
                   <small>
                     {review.removed.length > 0 && <>Removed: “{review.removed.join(', ')}”</>}

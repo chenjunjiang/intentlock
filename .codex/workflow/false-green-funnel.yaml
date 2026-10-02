@@ -1,0 +1,21 @@
+change_id: false-green-funnel
+task_type: c-end-existing-medium
+current_phase: qa
+artifacts:
+  - docs/false-green-funnel.md
+  - docs/attribution-tracking.md
+  - docs/qa-report.md
+  - docs/evidence/false-green-funnel/
+  - supabase/migrations/0004_anonymous_funnel.sql
+gate_results:
+  scope: confirmed_by_user
+  implementation: complete_local
+  local_qa: lint_50_unit_build_22_e2e_passed_zero_skip_xfail
+  local_verify: ac1_to_ac5_covered_production_integration_pending
+  local_review: no_p0_p1_found_production_sql_and_event_order_risks_recorded
+  production: pending_migration_edge_supabase_e2e_and_read_only_funnel_query
+last_verified_at: 2026-10-02
+next_action: Obtain separate authorization for production migration and Git release, then verify the real event path and query before closing QA.
+blockers:
+  - production_migration_not_authorized
+  - git_push_not_authorized

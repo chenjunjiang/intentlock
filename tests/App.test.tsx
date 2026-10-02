@@ -63,6 +63,38 @@ describe('IntentLock main flow', () => {
     expect(screen.getByText('No protected-term risk')).toBeInTheDocument()
   })
 
+  it('records one first edit and only aggregate check classifications', async () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('Original English text'), { target: { value: 'Alice pays Bob.' } })
+    fireEvent.change(screen.getByLabelText('AI rewritten English text'), { target: { value: 'Bob pays Alice.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Check meaning' }))
+
+    expect(screen.getByRole('heading', { name: 'Wording changes need review' })).toBeInTheDocument()
+    await waitFor(() => {
+      const events = vi.mocked(fetch).mock.calls.map(([, options]) => JSON.parse(String(options?.body)))
+      expect(events.filter((event) => event.eventName === 'input_edited')).toHaveLength(1)
+      const check = events.find((event) => event.eventName === 'analysis_completed')
+      expect(check?.metadata).toMatchObject({ inputKind: 'custom', resultState: 'review' })
+      expect(JSON.stringify(events)).not.toContain('Alice pays Bob')
+      expect(JSON.stringify(events)).not.toContain('Bob pays Alice')
+    })
+  })
+
+  it('clears a previous green result when the writing or mode changes', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Minimal grammar fix' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fix without meaning drift' }))
+    expect(screen.getByRole('heading', { name: 'No unexplained meaning changes found' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Original English text'), { target: { value: 'New wording.' } })
+    expect(screen.queryByRole('heading', { name: 'No unexplained meaning changes found' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fix without meaning drift' }))
+    expect(screen.getByRole('heading', { name: 'No unexplained meaning changes found' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Check an AI rewrite' }))
+    expect(screen.queryByRole('heading', { name: 'No unexplained meaning changes found' })).not.toBeInTheDocument()
+  })
+
   it('waits for confirmed storage before thanking the user', async () => {
     let confirmStorage: ((response: Response) => void) | undefined
     const fetchMock = vi.fn((_url: string, options: RequestInit) => {

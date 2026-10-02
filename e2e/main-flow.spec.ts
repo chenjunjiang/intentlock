@@ -126,6 +126,53 @@ test('asks for human review when the rewrite adds a number', async ({ page }, te
   await page.screenshot({ path: testInfo.outputPath('final.png'), fullPage: true })
 })
 
+test('reviews swapped roles and records anonymous funnel stages', async ({ page }, testInfo) => {
+  const events: NonNullable<ReturnType<typeof parseProductEvent>>[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname !== '/api/e') return
+    const event = parseProductEvent(request.postDataJSON())
+    if (event) events.push(event)
+  })
+  await page.goto('/')
+  await page.getByLabel('Original English text').fill('Alice pays Bob.')
+  await page.getByLabel('AI rewritten English text').fill('Bob pays Alice.')
+  await page.getByRole('button', { name: 'Check meaning' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Wording changes need review' })).toBeVisible()
+  await expect.poll(() => events.filter((event) => event.eventName === 'input_edited').length).toBe(1)
+  await expect.poll(() => events.find((event) => event.eventName === 'analysis_completed')?.metadata)
+    .toMatchObject({ mode: 'compare', inputKind: 'custom', resultState: 'review' })
+  expect(JSON.stringify(events)).not.toContain('Alice pays Bob')
+  expect(JSON.stringify(events)).not.toContain('Bob pays Alice')
+  await page.screenshot({ path: testInfo.outputPath('final.png'), fullPage: true })
+})
+
+test('reviews a changed pronoun and meaning-sensitive punctuation', async ({ page }, testInfo) => {
+  await page.goto('/')
+  await page.getByLabel('Original English text').fill('I approved it.')
+  await page.getByLabel('AI rewritten English text').fill('We approved it.')
+  await page.getByRole('button', { name: 'Check meaning' }).click()
+  await expect(page.getByRole('heading', { name: 'Wording changes need review' })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('pronoun.png'), fullPage: true })
+
+  await page.getByLabel('Original English text').fill('Please eat, Grandma.')
+  await page.getByLabel('AI rewritten English text').fill('Please eat Grandma.')
+  await page.getByRole('button', { name: 'Check meaning' }).click()
+  await expect(page.getByRole('heading', { name: 'Wording changes need review' })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('punctuation.png'), fullPage: true })
+})
+
+test('clears a green result as soon as the checked writing changes', async ({ page }, testInfo) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Minimal grammar fix' }).click()
+  await page.getByRole('button', { name: 'Fix without meaning drift' }).click()
+  await expect(page.getByRole('heading', { name: 'No unexplained meaning changes found' })).toBeVisible()
+  await page.getByLabel('Original English text').fill('New wording.')
+  await expect(page.getByRole('heading', { name: 'No unexplained meaning changes found' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Copy checked text' })).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('after-edit.png'), fullPage: true })
+})
+
 test('accepts equivalent cautious wording', async ({ page }, testInfo) => {
   await page.goto('/')
   await page.getByLabel('Original English text').fill('The update may help.')

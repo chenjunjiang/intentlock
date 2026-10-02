@@ -51,20 +51,10 @@ const NAME_EXCLUSIONS = new Set([
   'Please', 'The', 'This', 'That', 'These', 'Those', 'We', 'I', 'If', 'Although',
   'Because', 'Unless', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
   'Sunday', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
-  'September', 'October', 'November', 'December',
+  'September', 'October', 'November', 'December', 'He', 'She', 'It', 'You', 'They',
 ])
 
 const CAUTIOUS_MODALS = new Set(['may', 'might', 'could'])
-
-const FUNCTION_WORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'being', 'but', 'by',
-  'do', 'does', 'did', 'for', 'from', 'had', 'has', 'have', 'he', 'her', 'hers', 'him',
-  'his', 'how', 'i', 'if', 'in', 'is', 'it', 'its', 'me', 'my', 'mine', 'of', 'on',
-  'or', 'our', 'ours', 'she', 'so', 'than', 'that', 'the', 'their', 'theirs', 'them',
-  'then', 'there', 'these', 'they', 'this', 'those', 'to', 'us', 'was', 'we', 'were',
-  'what', 'when', 'where', 'which', 'while', 'who', 'whom', 'whose', 'why', 'with',
-  'you', 'your', 'yours',
-])
 
 function collect(regex: RegExp, text: string, type: string, icon: string): Lock[] {
   return [...text.matchAll(regex)].map((match) => ({
@@ -103,13 +93,13 @@ export function conservativeRewrite(text: string): string {
     .replace(/\bWe aims\b/g, 'We aim')
     .replace(/\bI drafts\b/g, 'I draft')
     .replace(/\bThe client provide\b/g, 'The client provides')
-    .replace(/\b([A-Z][a-z]+) ask\b/g, '$1 asked')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }
 
 function includesNormalized(haystack: string, needle: string): boolean {
-  return haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase())
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, 'i').test(haystack)
 }
 
 function preservesLock(lock: Lock, output: string): boolean {
@@ -120,14 +110,18 @@ function preservesLock(lock: Lock, output: string): boolean {
   return includesNormalized(output, lock.value)
 }
 
-function meaningfulWords(text: string): string[] {
-  const normalized = conservativeRewrite(text)
-    .toLocaleLowerCase()
+function normalizedText(text: string): string {
+  return conservativeRewrite(text)
     .replace(/[’‘]/g, "'")
     .replace(/\b(?:may|might|could)\b/g, 'may')
+}
 
-  return (normalized.match(/(?:[$€£¥]\s*)?\d+(?:[.,]\d+)*%?|[a-z]+(?:'[a-z]+)?/g) ?? [])
-    .filter((word) => !FUNCTION_WORDS.has(word))
+function comparisonTokens(text: string): string[] {
+  return normalizedText(text).match(/(?:[$€£¥]\s*)?\d+(?:[.,]\d+)*%?|[A-Za-z]+(?:'[A-Za-z]+)?|[^\s]/g) ?? []
+}
+
+function comparisonWords(text: string): string[] {
+  return normalizedText(text).match(/(?:[$€£¥]\s*)?\d+(?:[.,]\d+)*%?|[A-Za-z]+(?:'[A-Za-z]+)?/g) ?? []
 }
 
 function unmatchedWords(source: string[], output: string[]): { removed: string[]; added: string[] } {
@@ -178,13 +172,16 @@ export function compareLocks(source: string, output: string): { locks: Lock[]; r
     })
   }
 
-  const wording = unmatchedWords(meaningfulWords(source), meaningfulWords(output))
-  const reviews: Review[] = risks.length === 0 && (wording.removed.length > 0 || wording.added.length > 0)
+  const wording = unmatchedWords(comparisonWords(source), comparisonWords(output))
+  const sequenceChanged = comparisonTokens(source).join('\u0000') !== comparisonTokens(output).join('\u0000')
+  const reviews: Review[] = risks.length === 0 && sequenceChanged
     ? [{
         category: 'Wording change',
         removed: wording.removed,
         added: wording.added,
-        explanation: 'IntentLock cannot verify that the removed and added wording mean the same thing.',
+        explanation: wording.removed.length || wording.added.length
+          ? 'IntentLock cannot verify that the removed and added wording mean the same thing.'
+          : 'IntentLock cannot verify that the changed word order or punctuation preserves meaning.',
       }]
     : []
 

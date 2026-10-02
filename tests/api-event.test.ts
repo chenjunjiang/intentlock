@@ -77,6 +77,28 @@ describe('event API guardrails', () => {
     expect(response.status).toBe(204)
   })
 
+  it('stores only an empty first-edit event and enum funnel fields', async () => {
+    vi.stubEnv('INTENTLOCK_SUPABASE_URL', 'https://project.supabase.co/rest/v1')
+    vi.stubEnv('INTENTLOCK_SUPABASE_SECRET_KEY', 'sb_secret_test-value')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    for (const event of [
+      { eventName: 'input_edited', sessionId: 'funnel-session', metadata: {} },
+      { eventName: 'analysis_completed', sessionId: 'funnel-session', metadata: { inputKind: 'custom', resultState: 'review' } },
+    ]) {
+      const response = await handler(new Request('https://intentlock.example/api/e', {
+        method: 'POST', body: JSON.stringify(event),
+      }))
+      expect(response.headers.get('x-intentlock-storage')).toBe('stored')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.map(([, options]) => JSON.parse(String((options as RequestInit).body)))).toEqual([
+      { session_id: 'funnel-session', event_name: 'input_edited', metadata: {} },
+      { session_id: 'funnel-session', event_name: 'analysis_completed', metadata: { inputKind: 'custom', resultState: 'review' } },
+    ])
+  })
+
   it('sends new Supabase secret keys only through the apikey header', async () => {
     vi.stubEnv('INTENTLOCK_SUPABASE_URL', 'https://project.supabase.co/rest/v1')
     vi.stubEnv('INTENTLOCK_SUPABASE_SECRET_KEY', 'sb_secret_test-value')

@@ -1,6 +1,6 @@
 change_id: attribution-tracking
 task_type: c-end-existing-medium
-current_phase: ship
+current_phase: shipped
 artifacts:
   - docs/attribution-tracking.md
 gate_results:

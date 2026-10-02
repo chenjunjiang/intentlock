@@ -67,4 +67,74 @@ ORDER BY visits DESC, channel, internal;
 
 推广时仅分享带白名单 UTM 的链接，例如 `https://intentlock-nine.vercel.app/?utm_source=reddit`；历史未加标签的 Reddit/X 链接无法可靠反推来源。不能用本查询的低样本结果宣称市场需求或付费意愿成立。
 
-2026-09-30 在归因功能生产上线、固定 E2E 会话清零后再次执行这条只读 SQL：返回 `historical_unknown / unknown` 9 次访问、9 个浏览器标识，其余四项行为窗口均为 0；尚无新归因来源的非测试访问，不能把这 9 次历史访问归类为任何渠道或真人。
+2026-09-30 在归因功能生产上线、固定 E2E 会话清零后再次执行上方旧版只读 SQL：返回 `historical_unknown / unknown` 9 次访问、9 个浏览器标识，其余四项行为窗口均为 0；尚无新归因来源的非测试访问，不能把这 9 次历史访问归类为任何渠道或真人。
+
+## 2026-10-01 新版匿名漏斗（待发布）
+
+在执行 `supabase/migrations/0004_anonymous_funnel.sql` 并发布新版后，以下只读查询按同一访问窗口聚合。每项计的是“发生过该行为的访问次数”，不是独立人数或事件总数；转化率的分母写在列名中。`inputKind` 和 `resultState` 缺失的旧检查列为 `unknown`，不回填分类。同一次访问可能多次检查并出现不同结果，因此三态访问数不能相加当成总访问数。先前旧版 SQL 仍可查询历史基线。
+
+```sql
+WITH visits AS (
+  SELECT id, session_id, metadata,
+         LEAD(id) OVER (PARTITION BY session_id ORDER BY id) AS next_visit_id
+  FROM public.intentlock_events
+  WHERE event_name = 'visit'
+    AND session_id <> 'intentlock-e2e-session'
+), windows AS (
+  SELECT
+    COALESCE(v.metadata->>'channel', 'historical_unknown') AS channel,
+    COALESCE(v.metadata->>'internal', 'unknown') AS internal,
+    v.session_id,
+    a.edits, a.checks, a.sample_checks, a.custom_checks, a.unknown_input_checks,
+    a.safe_checks, a.review_checks, a.danger_checks, a.unknown_checks,
+    a.repeats, a.copies, a.pricing, a.pricing_yes
+  FROM visits v
+  CROSS JOIN LATERAL (
+    SELECT
+      COUNT(*) FILTER (WHERE e.event_name = 'input_edited') AS edits,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed') AS checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'inputKind' = 'sample') AS sample_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'inputKind' = 'custom') AS custom_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'inputKind' IS NULL) AS unknown_input_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'resultState' = 'safe') AS safe_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'resultState' = 'review') AS review_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'resultState' = 'danger') AS danger_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'analysis_completed' AND e.metadata->>'resultState' IS NULL) AS unknown_checks,
+      COUNT(*) FILTER (WHERE e.event_name = 'repeat_use') AS repeats,
+      COUNT(*) FILTER (WHERE e.event_name = 'result_copied') AS copies,
+      COUNT(*) FILTER (WHERE e.event_name = 'pricing_interest') AS pricing,
+      COUNT(*) FILTER (WHERE e.event_name = 'pricing_interest' AND e.metadata->>'answer' = 'yes') AS pricing_yes
+    FROM public.intentlock_events e
+    WHERE e.session_id = v.session_id
+      AND e.id > v.id
+      AND (v.next_visit_id IS NULL OR e.id < v.next_visit_id)
+  ) a
+)
+SELECT channel, internal,
+       COUNT(*) AS visits,
+       COUNT(DISTINCT session_id) AS browser_ids,
+       COUNT(*) FILTER (WHERE edits > 0) AS visits_with_edit,
+       COUNT(*) FILTER (WHERE checks > 0) AS visits_with_check,
+       COUNT(*) FILTER (WHERE sample_checks > 0) AS visits_with_sample_check,
+       COUNT(*) FILTER (WHERE custom_checks > 0) AS visits_with_custom_check,
+       COUNT(*) FILTER (WHERE unknown_input_checks > 0) AS visits_with_unknown_input,
+       COUNT(*) FILTER (WHERE safe_checks > 0) AS visits_with_safe,
+       COUNT(*) FILTER (WHERE review_checks > 0) AS visits_with_review,
+       COUNT(*) FILTER (WHERE danger_checks > 0) AS visits_with_danger,
+       COUNT(*) FILTER (WHERE unknown_checks > 0) AS visits_with_unknown_result,
+       COUNT(*) FILTER (WHERE repeats > 0) AS visits_with_repeat,
+       COUNT(*) FILTER (WHERE copies > 0) AS visits_with_copy,
+       COUNT(*) FILTER (WHERE pricing > 0) AS visits_with_price_interest,
+       COUNT(*) FILTER (WHERE pricing_yes > 0) AS visits_with_price_yes,
+       ROUND(100.0 * (COUNT(*) FILTER (WHERE edits > 0)) / COUNT(*), 1) AS visit_to_edit_pct,
+       ROUND(100.0 * (COUNT(*) FILTER (WHERE checks > 0)) / COUNT(*), 1) AS visit_to_check_pct,
+       ROUND(100.0 * (COUNT(*) FILTER (WHERE edits > 0 AND custom_checks > 0))
+             / NULLIF(COUNT(*) FILTER (WHERE edits > 0), 0), 1) AS edit_to_custom_check_pct,
+       ROUND(100.0 * (COUNT(*) FILTER (WHERE checks > 0 AND copies > 0))
+             / NULLIF(COUNT(*) FILTER (WHERE checks > 0), 0), 1) AS check_to_copy_pct
+FROM windows
+GROUP BY channel, internal
+ORDER BY visits DESC, channel, internal;
+```
+
+`input_edited` 是一次页面访问内的首次本地编辑，不表示编辑完成。异步写入可能改变事件的服务端 ID 顺序，使紧邻访问边界的行为归错窗口；上报失败或限流也会导致低估。价格回答是非阻断调查，不是付款或付费承诺。迁移、生产写入与这条新版查询目前均未执行，不把本地模拟遥测当作线上指标。

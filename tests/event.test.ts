@@ -21,6 +21,18 @@ describe('anonymous event protocol', () => {
     expect(parseProductEvent(event)).toEqual(event)
   })
 
+  it('accepts only anonymous funnel enums and an empty first-edit event', () => {
+    const sessionId = 'session-123'
+    expect(parseProductEvent({ eventName: 'input_edited', sessionId, metadata: {} })).not.toBeNull()
+    expect(parseProductEvent({ eventName: 'input_edited', sessionId, metadata: { text: 'private' } })).toBeNull()
+    expect(parseProductEvent({
+      eventName: 'analysis_completed', sessionId,
+      metadata: { mode: 'compare', inputKind: 'custom', resultState: 'review' },
+    })).not.toBeNull()
+    expect(parseProductEvent({ eventName: 'analysis_completed', sessionId, metadata: { inputKind: 'private' } })).toBeNull()
+    expect(parseProductEvent({ eventName: 'analysis_completed', sessionId, metadata: { resultState: 'private' } })).toBeNull()
+  })
+
   it('rejects unknown events, unknown fields and nested metadata', () => {
     expect(parseProductEvent({ eventName: 'unknown', sessionId: 'session-123' })).toBeNull()
     expect(parseProductEvent({ eventName: 'visit', sessionId: 'session-123', source: 'private copy' })).toBeNull()

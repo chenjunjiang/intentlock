@@ -64,6 +64,29 @@ describe('semantic safety rules', () => {
     expect(result.reviews[0]).toMatchObject({ removed: [], added: ['10'] })
   })
 
+  it.each([
+    ['Alice pays Bob.', 'Bob pays Alice.'],
+    ['I approved it.', 'We approved it.'],
+    ['He approved it.', 'She approved it.'],
+    ['Please eat, Grandma.', 'Please eat Grandma.'],
+    ['Send this to US.', 'Send this to us.'],
+  ])('does not show green for changed roles, pronouns or punctuation', (source, output) => {
+    const result = compareLocks(source, output)
+    expect(result.risks.length + result.reviews.length).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ['Sam approved it.', 'Samantha approved it.', 'Sam'],
+    ['We have 10 units.', 'We have 100 units.', '10'],
+  ])('does not preserve a protected value inside a longer value', (source, output, value) => {
+    expect(compareLocks(source, output).risks.some((risk) => risk.original === value)).toBe(true)
+  })
+
+  it('does not turn a present-tense request into a past-tense statement', () => {
+    expect(conservativeRewrite('Priya ask Sam.')).toBe('Priya ask Sam.')
+    expect(compareLocks('Priya ask Sam.', 'Priya asked Sam.').reviews).toHaveLength(1)
+  })
+
   it('keeps protected terms during a minimal fix', () => {
     const source = 'Priya may approves up to $5,000 after Monday.'
     const output = conservativeRewrite(source)

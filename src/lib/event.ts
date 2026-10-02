@@ -1,5 +1,6 @@
 export const ALLOWED_EVENTS = new Set([
   'visit',
+  'input_edited',
   'analysis_completed',
   'repeat_use',
   'result_copied',
@@ -16,7 +17,8 @@ const ALLOWED_EVENT_KEYS = new Set(['eventName', 'sessionId', 'metadata'])
 
 const ALLOWED_METADATA_KEYS: Record<string, Set<string>> = {
   visit: new Set(['channel', 'internal']),
-  analysis_completed: new Set(['mode', 'riskCount', 'reviewCount', 'lockCount', 'lengthBucket']),
+  input_edited: new Set(),
+  analysis_completed: new Set(['mode', 'riskCount', 'reviewCount', 'lockCount', 'lengthBucket', 'inputKind', 'resultState']),
   repeat_use: new Set(['checks']),
   result_copied: new Set(['mode']),
   pricing_interest: new Set(['answer', 'proposedMonthlyPriceUsd']),
@@ -50,6 +52,10 @@ export function parseProductEvent(input: unknown): ProductEvent | null {
   if (candidate.eventName === 'visit') {
     if ('channel' in metadata && !VISIT_CHANNELS.includes(metadata.channel as VisitChannel)) return null
     if ('internal' in metadata && typeof metadata.internal !== 'boolean') return null
+  }
+  if (candidate.eventName === 'analysis_completed') {
+    if ('inputKind' in metadata && !['sample', 'custom'].includes(metadata.inputKind as string)) return null
+    if ('resultState' in metadata && !['safe', 'review', 'danger'].includes(metadata.resultState as string)) return null
   }
   return { eventName: candidate.eventName, sessionId: candidate.sessionId, metadata }
 }
