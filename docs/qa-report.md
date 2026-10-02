@@ -2,7 +2,28 @@
 
 更新：2026-10-02
 
-## 2026-10-02 收尾：错误绿灯与匿名漏斗（10-01 本地验证）
+## 2026-10-02 生产验收：错误绿灯与匿名漏斗
+
+- 功能版本 `main@69141af43eaa09df41399afc6414e7813b060889` 经 GitHub 推送自动部署为 `dpl_25zff2oKnn8VivYegEDpJ2xt7CPC`；Vercel 显示 GitHub `chenjunjiang/intentlock`、`main`、该提交和 `READY`，稳定域名指向此部署。未使用 CLI 直接部署。
+- 发布前在 `main` 按序执行 `bun run lint`、`bun run test`（50/50，0 skip/xfail）、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`（桌面/移动 22/22，0 skip/xfail）；主分支工作树干净。`0004_anonymous_funnel.sql` 的 dry-run 仅列此迁移，执行后远端与本地 `0001`–`0004` 记录一致。
+- 稳定域名首页和 `/api/e?health=1` 均为 HTTP 200；健康结果 `degraded:false`、`storage:supabase`、`ingestFailures:0`。首页响应包含 CSP、HSTS、`nosniff`、Referrer-Policy 和 Permissions-Policy。
+- `E2E_BASE_URL=https://intentlock-nine.vercel.app PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e` 通过 22/22，0 skip/xfail。桌面/移动真实 UI 和 `/api/e` 返回 204/`stored`；每个请求通过生产事件解析器，未携带原文、改写或 `Referer`，浏览器 Console error 与页面异常为 0。生产固定会话写入 74 条，其中 `input_edited` 12 条、`analysis_completed` 26 条；检查事件实际含 `sample/custom` 与 `safe/review/danger` 分类。按固定 session 精确删除 74 条，复查为 0。
+- 文档中的新版只读漏斗 SQL 已在生产 PostgreSQL 成功执行。排除固定测试会话后，返回 `historical_unknown / unknown` 的 9 次访问、9 个浏览器标识，编辑、检查、复用、复制及价格行为均为 0；这些历史访问不能解释为真人转化或任何渠道的效果。
+
+| 生产 Scenario | 桌面 / 移动证据 |
+| --- | --- |
+| 危险改写保持红色 | [桌面](evidence/false-green-funnel/production/danger-desktop.png) / [移动](evidence/false-green-funnel/production/danger-mobile.png) |
+| 最小语法修正保持绿色 | [桌面](evidence/false-green-funnel/production/safe-desktop.png) / [移动](evidence/false-green-funnel/production/safe-mobile.png) |
+| 角色互换显示黄色 | [桌面](evidence/false-green-funnel/production/roles-desktop.png) / [移动](evidence/false-green-funnel/production/roles-mobile.png) |
+| 代词变化显示黄色 | [桌面](evidence/false-green-funnel/production/pronoun-desktop.png) / [移动](evidence/false-green-funnel/production/pronoun-mobile.png) |
+| 标点变化显示黄色 | [桌面](evidence/false-green-funnel/production/punctuation-desktop.png) / [移动](evidence/false-green-funnel/production/punctuation-mobile.png) |
+| 编辑后旧绿色结果消失 | [桌面](evidence/false-green-funnel/production/after-edit-desktop.png) / [移动](evidence/false-green-funnel/production/after-edit-mobile.png) |
+
+生产 12 张截图均为合成文本，已核对关键风险与结果画面；桌面双栏、移动单栏无明显截断、遮挡或横向溢出。需求完整性 verify（独立 pass）：AC-1/2 的判定与结果失效、AC-3 的事件隐私及分类、AC-4 的真实库漏斗查询、AC-5 的先迁移后发布和存储失败不阻断均有对应证据，生产验收无缺项。代码 review（独立 pass）：未发现 P0/P1；剩余风险是异步写入可能让紧邻访问边界的事件归错窗口、上报失败会低估、浏览器标识不是独立真人，以及规则绿色不能证明完整语义等价。
+
+## 2026-10-02 发布前本地快照：错误绿灯与匿名漏斗（10-01 验证）
+
+以下保留发布前的待办与证据状态；当前生产结论以上节为准。
 
 - 代码状态：`main@8047128` 上的未提交工作区；本轮改动尚未推送或部署。截图对应 `src/App.tsx` SHA-256 `c9aea38f67b68c33208e6fe70d630c6cd28312a48440f6eb1080112104c50a89`、`src/lib/intent-lock.ts` `33fe458b07101becff520c60fc6acb34fad0ae4f79aeda41783a730ea9d112bd`、`src/lib/event.ts` `e59b33dfd94a58dce2755bea7bf5ee81c08dc46199a9a3611cfa7d8be7b7c5b7`、`e2e/main-flow.spec.ts` `955f6846fc5ba20865b30889b805f94634b276bf018cfd5034b1dfc1d4b688ca`。
 - 调试假设与实验：比较器的无序内容词比较、功能词过滤及保护项子串匹配会造成错误绿灯；内置 `ask → asked` 改变时态；编辑后旧结果未失效。用现有 `compareLocks` 的 `bun -e` 复现角色互换、代词互换与时态问题，再补回归测试。新测试在旧实现上 9 项失败；补充旧结果与大小写边界时，又先见到 2 项失败。

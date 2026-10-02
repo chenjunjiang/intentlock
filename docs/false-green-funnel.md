@@ -1,6 +1,6 @@
 # 错误绿灯与匿名漏斗
 
-状态：2026-10-02 本地候选；C 端存量项目中等变更。lint、50 项单元/组件测试、build 与 22 项桌面/移动 E2E 已通过；生产迁移、真实存储复验、推送与部署尚未执行。证据见 `docs/qa-report.md`。
+状态：2026-10-02 已通过 GitHub `main` 自动部署并完成生产验收；C 端存量项目中等变更。本地 lint、50 项单元/组件测试、build 与 22 项桌面/移动 E2E 通过，生产 22 项 E2E、真实存储与漏斗 SQL 通过；固定测试会话已清零。证据见 `docs/qa-report.md`。
 
 ## 验收口径
 
@@ -17,4 +17,4 @@
 3. `supabase/migrations/0004_anonymous_funnel.sql` 扩充现有事件名约束；`README.md` 与 `docs/attribution-tracking.md` 同步协议和只读漏斗 SQL。
 4. 依次执行 `bun run lint`、`bun run test`、`bun run build`、`PLAYWRIGHT_USE_SYSTEM_CHROME=1 bun run test:e2e`，逐场景查看桌面与移动截图，再分别做需求完整性核对和代码审查。
 
-生产部署及迁移需另行授权；本地 Vite 的 E2E 遥测响应是模拟值，不能当作 Edge → Supabase 集成通过。
+本地 Vite 的 E2E 遥测响应是模拟值；生产验收使用真实 Edge → Supabase 写入和只读 SQL，结果见 `docs/qa-report.md`。
